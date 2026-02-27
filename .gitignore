@@ -1,0 +1,21 @@
+# Env and secrets
+.env
+transportistas_sync/.env
+*.env.local
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# SAM
+.aws-sam/
+packaged.yaml

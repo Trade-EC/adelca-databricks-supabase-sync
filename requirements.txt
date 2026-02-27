@@ -1,0 +1,11 @@
+# Databricks SQL Connector (with PyArrow for better performance)
+databricks-sql-connector[pyarrow]>=4.0.0
+
+# Environment and Supabase (for connector → Supabase pipeline)
+python-dotenv>=1.0.0
+supabase>=2.0.0
+psycopg2-binary>=2.9.0
+
+# Optional: testing and dev
+# pytest>=7.0.0
+# pytest-cov>=4.0.0

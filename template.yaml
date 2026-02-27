@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Databricks to Supabase sync — runs every hour via EventBridge.
+
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 256
+    Runtime: python3.12
+
+Parameters:
+  DatabricksHost:
+    Type: String
+    Description: Databricks SQL warehouse hostname
+  DatabricksHttpPath:
+    Type: String
+    Description: Databricks SQL warehouse HTTP path
+  DatabricksToken:
+    Type: String
+    NoEcho: true
+    Description: Databricks personal access token
+  SupabaseUrl:
+    Type: String
+    Description: Supabase project URL (https://xxx.supabase.co)
+  SupabaseServiceRoleKey:
+    Type: String
+    NoEcho: true
+    Description: Supabase service_role API key
+  DbxTable:
+    Type: String
+    Default: qas.aplicaciones.transportistas_final
+    Description: Databricks source table (catalog.schema.table)
+  ScheduleExpression:
+    Type: String
+    Default: rate(1 hour)
+    Description: How often to run the sync (EventBridge schedule)
+
+Resources:
+  SyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: databricks-supabase-sync
+      Handler: handler.lambda_handler
+      CodeUri: lambda_function/
+      Description: Syncs transportistas_final from Databricks to Supabase
+      Environment:
+        Variables:
+          DATABRICKS_HOST: !Ref DatabricksHost
+          DATABRICKS_HTTP_PATH: !Ref DatabricksHttpPath
+          DATABRICKS_TOKEN: !Ref DatabricksToken
+          SUPABASE_URL: !Ref SupabaseUrl
+          SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
+          DBX_TABLE: !Ref DbxTable
+          BATCH_SIZE: "500"
+      Events:
+        HourlySync:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Hourly Databricks to Supabase sync
+            Enabled: true
+      Policies:
+        - AWSLambdaBasicExecutionRole
+    Metadata:
+      BuildMethod: python3.12
+
+  SyncLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${SyncFunction}
+      RetentionInDays: 14
+
+Outputs:
+  SyncFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt SyncFunction.Arn
+  SyncFunctionName:
+    Description: Lambda function name
+    Value: !Ref SyncFunction

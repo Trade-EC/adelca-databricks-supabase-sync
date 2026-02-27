@@ -1,0 +1,26 @@
+# SAM CLI configuration
+# Run: sam deploy --guided  (first time, to set these values interactively)
+# Then: sam deploy            (subsequent deploys reuse saved config)
+
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "databricks-supabase-sync"
+resolve_s3 = true
+s3_prefix = "databricks-supabase-sync"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+
+parameter_overrides = [
+    "DatabricksHost=dbc-a673d4ad-763e.cloud.databricks.com",
+    "DatabricksHttpPath=/sql/1.0/warehouses/d44b787d62200d63",
+    "DatabricksToken=CHANGE_ME",
+    "SupabaseUrl=https://cfihfczuvwbulxddbknd.supabase.co",
+    "SupabaseServiceRoleKey=CHANGE_ME",
+    "DbxTable=qas.aplicaciones.transportistas_final",
+    "ScheduleExpression=rate(1 hour)",
+]
+
+[default.build.parameters]
+use_container = true
