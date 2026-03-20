@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  Databricks to Supabase sync — runs every hour via EventBridge.
+  Databricks PRD to Supabase incremental sync — runs on schedule via EventBridge.
+  Uses OAuth M2M (Service Principal) for Databricks authentication.
 
 Globals:
   Function:
@@ -12,14 +13,17 @@ Globals:
 Parameters:
   DatabricksHost:
     Type: String
-    Description: Databricks SQL warehouse hostname
+    Description: Databricks PRD SQL warehouse hostname
   DatabricksHttpPath:
     Type: String
-    Description: Databricks SQL warehouse HTTP path
-  DatabricksToken:
+    Description: Databricks PRD SQL warehouse HTTP path
+  DatabricksClientId:
+    Type: String
+    Description: Service Principal Application (Client) ID
+  DatabricksClientSecret:
     Type: String
     NoEcho: true
-    Description: Databricks personal access token
+    Description: Service Principal OAuth secret
   SupabaseUrl:
     Type: String
     Description: Supabase project URL (https://xxx.supabase.co)
@@ -29,8 +33,12 @@ Parameters:
     Description: Supabase service_role API key
   DbxTable:
     Type: String
-    Default: qas.aplicaciones.transportistas_final
+    Default: prod.gldprd.dim_app_transportistas
     Description: Databricks source table (catalog.schema.table)
+  BatchSize:
+    Type: String
+    Default: "500"
+    Description: Rows per upsert batch
   ScheduleExpression:
     Type: String
     Default: rate(1 hour)
@@ -40,25 +48,26 @@ Resources:
   SyncFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: databricks-supabase-sync
+      FunctionName: patek-philippe
       Handler: handler.lambda_handler
       CodeUri: lambda_function/
-      Description: Syncs transportistas_final from Databricks to Supabase
+      Description: Incremental sync transportistas from Databricks PRD to Supabase
       Environment:
         Variables:
           DATABRICKS_HOST: !Ref DatabricksHost
           DATABRICKS_HTTP_PATH: !Ref DatabricksHttpPath
-          DATABRICKS_TOKEN: !Ref DatabricksToken
+          DATABRICKS_CLIENT_ID: !Ref DatabricksClientId
+          DATABRICKS_CLIENT_SECRET: !Ref DatabricksClientSecret
           SUPABASE_URL: !Ref SupabaseUrl
           SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
           DBX_TABLE: !Ref DbxTable
-          BATCH_SIZE: "500"
+          BATCH_SIZE: !Ref BatchSize
       Events:
-        HourlySync:
+        ScheduledSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Hourly Databricks to Supabase sync
+            Description: Scheduled Databricks PRD to Supabase incremental sync
             Enabled: true
       Policies:
         - AWSLambdaBasicExecutionRole

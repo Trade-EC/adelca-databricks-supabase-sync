@@ -5,22 +5,14 @@
 version = 0.1
 
 [default.deploy.parameters]
-stack_name = "databricks-supabase-sync"
+stack_name = "databricks-supabase-sync-prd"
 resolve_s3 = true
-s3_prefix = "databricks-supabase-sync"
+s3_prefix = "databricks-supabase-sync-prd"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 
-parameter_overrides = [
-    "DatabricksHost=dbc-a673d4ad-763e.cloud.databricks.com",
-    "DatabricksHttpPath=/sql/1.0/warehouses/d44b787d62200d63",
-    "DatabricksToken=CHANGE_ME",
-    "SupabaseUrl=https://cfihfczuvwbulxddbknd.supabase.co",
-    "SupabaseServiceRoleKey=CHANGE_ME",
-    "DbxTable=qas.aplicaciones.transportistas_final",
-    "ScheduleExpression=rate(1 hour)",
-]
+parameter_overrides = "DatabricksHost=dbc-e0db49ed-4e40.cloud.databricks.com DatabricksHttpPath=/sql/1.0/warehouses/e4181a34a99570e3 DatabricksClientId=34300a33-e32c-4352-af73-998c49f9d88a DatabricksClientSecret=dose2ea828ec883432abd5f3f55c3a937271 SupabaseUrl=https://rqlzsdziohmqanalmgyx.supabase.co SupabaseServiceRoleKey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbHpzZHppb2htcWFuYWxtZ3l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzk0OTE0MywiZXhwIjoyMDg5NTI1MTQzfQ.03Z3XHPvySyNQtXyT94KiOMSwUnWkdJk7N-upK78Dn8 DbxTable=prod.gldprd.dim_app_transportistas BatchSize=500 'ScheduleExpression=rate(1 hour)'"
 
 [default.build.parameters]
 use_container = true
