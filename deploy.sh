@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================
-# Deploy Databricks → Supabase sync Lambda via SAM
+# Deploy Databricks PRD → Supabase sync Lambda via SAM
 # ============================================================
 #
 # Prerequisites:
@@ -13,8 +13,13 @@ set -euo pipefail
 # Usage:
 #   First deploy (interactive):  ./deploy.sh --guided
 #   Subsequent deploys:          ./deploy.sh
+#
+# IMPORTANT: Before first deploy, update samconfig.toml:
+#   - DatabricksClientSecret=<your actual secret>
+#   - SupabaseServiceRoleKey=<your actual key>
 # ============================================================
 
+FUNCTION_NAME="databricks-supabase-sync-prd"
 GUIDED=""
 if [[ "${1:-}" == "--guided" ]]; then
     GUIDED="--guided"
@@ -33,5 +38,5 @@ fi
 
 echo ""
 echo "=== Done ==="
-echo "Check logs:  sam logs -n databricks-supabase-sync --tail"
-echo "Test now:    aws lambda invoke --function-name databricks-supabase-sync /dev/stdout"
+echo "Check logs:  sam logs -n ${FUNCTION_NAME} --tail"
+echo "Test now:    aws lambda invoke --function-name ${FUNCTION_NAME} /dev/stdout"
