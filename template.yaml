@@ -33,7 +33,7 @@ Parameters:
     Description: Supabase service_role API key
   DbxTable:
     Type: String
-    Default: prod.gldprd.dim_app_transportistas
+    Default: prod.gldlogistica.db_trade_dim_app_transportistas
     Description: Databricks source table (catalog.schema.table)
   BatchSize:
     Type: String

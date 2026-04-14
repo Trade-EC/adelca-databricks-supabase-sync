@@ -53,7 +53,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_TABLE = "dim_app_transportistas"
 WATERMARK_TABLE = "etl_watermarks"
-DBX_TABLE = "prod.gldprd.dim_app_transportistas"
+DBX_TABLE = "prod.gldlogistica.db_trade_dim_app_transportistas"
 BATCH_SIZE = int(os.environ.get("FETCH_SIZE", "500"))
 
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -69,7 +69,6 @@ HEADERS = {
 COLUMN_NAMES = [
     "codigo_transportista", "ruc", "nombre_transportista",
     "telefono", "email", "estado_transportista",
-    "placas", "tipos_vehiculo",
 ]
 
 # ---------------------------------------------------------------------------
@@ -131,8 +130,7 @@ def fetch_databricks():
     query = f"""
     SELECT
       codigo_transportista, ruc, nombre_transportista,
-      telefono, email, estado_transportista,
-      placas, tipos_vehiculo
+      telefono, email, estado_transportista
     FROM {DBX_TABLE}
     """
     dbx = DatabricksConnector(env="prd")

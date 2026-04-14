@@ -28,7 +28,7 @@ HEADERS = {
 GMT5 = timezone(timedelta(hours=-5))
 
 LAMBDA_NAME = "patek-philippe"
-SOURCE_TABLE = "prod.gldprd.dim_app_transportistas"
+SOURCE_TABLE = "prod.gldlogistica.db_trade_dim_app_transportistas"
 DEST_TABLE = "transportistas"
 
 

@@ -53,7 +53,7 @@ if not _load_env():
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_TABLE = "transportistas"
-DBX_TABLE = "prod.gldprd.dim_app_transportistas"
+DBX_TABLE = "prod.gldlogistica.db_trade_dim_app_transportistas"
 BATCH_SIZE = int(os.environ.get("FETCH_SIZE", "500"))
 
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -124,8 +124,7 @@ def fetch_databricks():
     query = f"""
     SELECT
       codigo_transportista, ruc, nombre_transportista,
-      telefono, email, estado_transportista,
-      placas, tipos_vehiculo
+      telefono, email, estado_transportista
     FROM {DBX_TABLE}
     """
     dbx = DatabricksConnector(env="prd")
@@ -180,8 +179,6 @@ def transform_rows(rows: list[tuple]) -> list[dict]:
             "telefono": row[3],
             "email": str(row[4]).strip() if row[4] else None,
             "estado_transportista": "pendiente",
-            "placas": _serialize_array(row[6]),
-            "tipos_vehiculo": _serialize_array(row[7]),
             "_ingested_at": now,
         })
     return result
