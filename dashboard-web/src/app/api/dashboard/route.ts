@@ -36,21 +36,25 @@ export async function GET() {
 
     const rows = await Promise.all(
       pipelines.map(async (p) => {
+        const profile = p.supabase_profile === "secondary" ? "secondary" : "default";
+        const dbProfile = p.databricks_profile === "qas" ? "qas" : "prd";
+        const datamartTs = p.datamart_timestamp_column || "_ingested_at";
         const [sourceCount, destCount, watermark, datamartWatermark, sourceAuditCreatedAt, lastRun] =
           await Promise.all([
-          countSourceRows(p.source_table),
-          supabaseCount(p.target_table),
-          supabaseLastWatermark(p.pipeline_name),
-          supabaseDatamartWatermark(p.target_table),
-          maxSourceAuditCreatedAt(p.source_table),
-          supabaseLastRun(p.pipeline_name),
+          countSourceRows(p.source_table, dbProfile),
+          supabaseCount(p.target_table, profile),
+          supabaseLastWatermark(p.pipeline_name, profile),
+          supabaseDatamartWatermark(p.target_table, profile, datamartTs),
+          maxSourceAuditCreatedAt(p.source_table, dbProfile),
+          supabaseLastRun(p.pipeline_name, profile),
         ]);
 
+        const destN = destCount ?? 0;
         return {
           ...p,
           source_count: sourceCount,
           dest_count: destCount,
-          pending: Math.max(0, sourceCount - destCount),
+          pending: destCount == null ? null : Math.max(0, sourceCount - destN),
           watermark,
           datamart_watermark: datamartWatermark,
           source_audit_created_at_max: sourceAuditCreatedAt,

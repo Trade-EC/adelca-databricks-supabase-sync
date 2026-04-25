@@ -9,6 +9,11 @@ export type PipelineConfig = {
   conflict_key: string;
   batch_size: number;
   schedule: string;
+  supabase_profile?: "default" | "secondary";
+  databricks_profile?: "prd" | "qas";
+  row_mode?: "transportistas" | "generic";
+  /** Column for MAX() in dashboard (default _ingested_at) */
+  datamart_timestamp_column?: string;
 };
 
 type PipelinesMap = Record<string, PipelineConfig>;

@@ -2,6 +2,9 @@
   "name": "dashboard-web",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
@@ -11,6 +14,7 @@
   "dependencies": {
     "@aws-sdk/client-cloudwatch-logs": "^3.1035.0",
     "@aws-sdk/client-lambda": "^3.1035.0",
+    "dotenv": "^16.4.5",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4"

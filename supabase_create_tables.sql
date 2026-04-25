@@ -70,3 +70,7 @@ CREATE TABLE IF NOT EXISTS public.etl_runs (
 
 CREATE INDEX IF NOT EXISTS idx_etl_runs_pipeline_created_at
   ON public.etl_runs (pipeline_name, created_at DESC);
+
+-- Pipeline 2: QAS qas.aplicaciones.dim_vehiculos → public.vehicles (secondary Supabase).
+-- The live `vehicles` table is app-defined; typical columns: id, license_plate, type, model,
+-- weight_average_capacity, weight_average_capacity_unit, fleet_owner_unique_code, is_route_based, synced_at.

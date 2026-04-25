@@ -24,6 +24,19 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Service Principal OAuth secret
+  DatabricksQasHost:
+    Type: String
+    Default: ""
+    Description: QAS workspace host (optional; pipelines with databricks_profile=qas)
+  DatabricksQasHttpPath:
+    Type: String
+    Default: ""
+    Description: QAS SQL warehouse HTTP path
+  DatabricksQasToken:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: QAS Personal Access Token (PAT)
   SupabaseUrl:
     Type: String
     Description: Supabase project URL (https://xxx.supabase.co)
@@ -31,6 +44,15 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Supabase service_role API key
+  SupabaseSecondaryUrl:
+    Type: String
+    Default: ""
+    Description: Second Supabase project URL (optional; pipelines with supabase_profile=secondary)
+  SupabaseSecondaryServiceRoleKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Service role for second Supabase project (optional)
   DbxTable:
     Type: String
     Default: prod.gldlogistica.db_trade_dim_app_transportistas
@@ -68,8 +90,13 @@ Resources:
           DATABRICKS_HTTP_PATH: !Ref DatabricksHttpPath
           DATABRICKS_CLIENT_ID: !Ref DatabricksClientId
           DATABRICKS_CLIENT_SECRET: !Ref DatabricksClientSecret
+          DATABRICKS_QAS_HOST: !Ref DatabricksQasHost
+          DATABRICKS_QAS_HTTP_PATH: !Ref DatabricksQasHttpPath
+          DATABRICKS_QAS_TOKEN: !Ref DatabricksQasToken
           SUPABASE_URL: !Ref SupabaseUrl
           SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
+          SUPABASE_SECONDARY_URL: !Ref SupabaseSecondaryUrl
+          SUPABASE_SECONDARY_SERVICE_ROLE_KEY: !Ref SupabaseSecondaryServiceRoleKey
           DBX_TABLE: !Ref DbxTable
           BATCH_SIZE: !Ref BatchSize
           ETL_LOGS_BUCKET: !Ref EtlLogsBucket
@@ -83,6 +110,13 @@ Resources:
             Description: Scheduled Databricks PRD to Supabase incremental sync
             Enabled: true
             Input: '{"pipeline_name":"transportistas"}'
+        ScheduledSecondarySync:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Scheduled Databricks QAS to secondary Supabase sync
+            Enabled: true
+            Input: '{"pipeline_name":"pipeline_secondary_upsert"}'
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:

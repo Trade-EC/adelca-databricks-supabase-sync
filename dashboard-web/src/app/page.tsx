@@ -21,8 +21,8 @@ type PipelineRow = {
   conflict_key: string;
   schedule: string;
   source_count: number;
-  dest_count: number;
-  pending: number;
+  dest_count: number | null;
+  pending: number | null;
   watermark: string | null;
   datamart_watermark: string | null;
   source_audit_created_at_max: string | null;
@@ -130,8 +130,10 @@ export default function Home() {
                     <td className="py-3 pr-4 text-zinc-300">{p.source_table}</td>
                     <td className="py-3 pr-4 text-zinc-300">{p.target_table}</td>
                     <td className="py-3 pr-4">
-                      src {p.source_count} / dst {p.dest_count}
-                      <div className="text-xs text-zinc-400">pending {p.pending}</div>
+                      src {p.source_count} / dst {p.dest_count ?? "—"}
+                      <div className="text-xs text-zinc-400">
+                        pending {p.pending ?? "—"}
+                      </div>
                     </td>
                     <td className="py-3 pr-4 text-xs text-zinc-300">
                       <div>pipeline: {p.watermark ?? "—"}</div>

@@ -19,7 +19,11 @@ build/
 # SAM
 .aws-sam/
 packaged.yaml
+samconfig.local.toml
 
 # Node.js
 node_modules/
 npm-debug.log*
+
+# Vercel (local project link; use dashboard or re-link in CI)
+.vercel/

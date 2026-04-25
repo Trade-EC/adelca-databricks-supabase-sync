@@ -1,6 +1,9 @@
 {
   "transportistas": {
     "pipeline_name": "transportistas",
+    "databricks_profile": "prd",
+    "supabase_profile": "default",
+    "row_mode": "transportistas",
     "source_table": "prod.gldlogistica.db_trade_dim_app_transportistas",
     "target_table": "transportistas",
     "write_mode": "insert_only",
@@ -22,21 +25,41 @@
       "type": "uuid5_codigo_transportista"
     }
   },
-  "transportistas_upsert_example": {
-    "pipeline_name": "transportistas_upsert_example",
-    "source_table": "prod.gldlogistica.db_trade_dim_app_transportistas",
-    "target_table": "transportistas",
+  "pipeline_secondary_upsert": {
+    "pipeline_name": "pipeline_secondary_upsert",
+    "databricks_profile": "qas",
+    "supabase_profile": "secondary",
+    "row_mode": "generic",
+    "source_table": "qas.aplicaciones.dim_vehiculos",
+    "target_table": "vehicles",
     "write_mode": "upsert",
-    "conflict_key": "codigo_transportista",
+    "conflict_key": "license_plate",
+    "require_non_null": ["placa_referencia"],
     "batch_size": 500,
     "schedule": "manual",
     "column_mapping": [
-      { "source": "codigo_transportista", "target": "codigo_transportista" },
-      { "source": "ruc", "target": "ruc" },
-      { "source": "nombre_transportista", "target": "nombre_transportista" },
-      { "source": "telefono", "target": "telefono" },
-      { "source": "email", "target": "email" }
+      { "source": "placa_referencia", "target": "license_plate" },
+      { "source": "tipo_vehiculo", "target": "type" },
+      { "source": "capacidad_nominal_kg", "target": "weight_average_capacity" },
+      { "source": "capacidad_nominal_unidad", "target": "weight_average_capacity_unit" },
+      { "source": "codigo_unico_transportista", "target": "fleet_owner_unique_code" }
     ],
-    "defaults": {}
+    "defaults": {
+      "is_route_based": false
+    },
+    "null_coalesce": {
+      "weight_average_capacity": 0,
+      "weight_average_capacity_unit": "KG",
+      "fleet_owner_unique_code": ""
+    },
+    "id_strategy": {
+      "type": "uuid5_from_source",
+      "column": "id",
+      "source_column": "placa_referencia",
+      "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
+    },
+    "include_ingested_at": true,
+    "sync_timestamp_column": "synced_at",
+    "datamart_timestamp_column": "synced_at"
   }
 }

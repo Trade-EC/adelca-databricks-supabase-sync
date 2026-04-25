@@ -12,7 +12,10 @@ region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 
-parameter_overrides = "DatabricksHost=dbc-e0db49ed-4e40.cloud.databricks.com DatabricksHttpPath=/sql/1.0/warehouses/e4181a34a99570e3 DatabricksClientId=34300a33-e32c-4352-af73-998c49f9d88a DatabricksClientSecret=dose30f6d7524c4bc745c6ad15d9b4adb8d7 SupabaseUrl=https://rqlzsdziohmqanalmgyx.supabase.co SupabaseServiceRoleKey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxbHpzZHppb2htcWFuYWxtZ3l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzk0OTE0MywiZXhwIjoyMDg5NTI1MTQzfQ.03Z3XHPvySyNQtXyT94KiOMSwUnWkdJk7N-upK78Dn8 DbxTable=prod.gldlogistica.db_trade_dim_app_transportistas BatchSize=500 'ScheduleExpression=cron(0 5 * * ? *)'"
+# Use non-sensitive defaults in git; keep real credentials in samconfig.local.toml (ignored)
+# Deploy with local creds: sam deploy --config-file samconfig.local.toml --no-confirm-changeset
+# ScheduleExpression must be quoted for SAM: ScheduleExpression="cron(...)" (see AWS SAM deploy docs)
+parameter_overrides = "DatabricksHost=CHANGEME DatabricksHttpPath=/sql/1.0/warehouses/CHANGEME DatabricksClientId=CHANGEME DatabricksClientSecret=CHANGEME DatabricksQasHost=CHANGEME DatabricksQasHttpPath=/sql/1.0/warehouses/CHANGEME DatabricksQasToken=CHANGEME SupabaseUrl=https://CHANGEME.supabase.co SupabaseServiceRoleKey=CHANGEME SupabaseSecondaryUrl=https://CHANGEME.supabase.co SupabaseSecondaryServiceRoleKey=CHANGEME DbxTable=prod.gldlogistica.db_trade_dim_app_transportistas BatchSize=500 ScheduleExpression=\"cron(0 5 * * ? *)\""
 
 [default.build.parameters]
 use_container = true
