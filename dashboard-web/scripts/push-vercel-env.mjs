@@ -3,7 +3,7 @@
  * Push env vars to Vercel Production via REST API (no npx / no CLI hang).
  *
  *   cd dashboard-web
- *   export VERCEL_TOKEN=...   # https://vercel.com/account/tokens
+ *   export VERCEL_TOKEN="<paste token>"   # https://vercel.com/account/tokens
  *   npm run vercel:push-env
  *
  * Prefer `npm run vercel:sync-env` if you use `vercel login` (no token; same as before).

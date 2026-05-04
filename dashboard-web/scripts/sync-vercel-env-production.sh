@@ -11,6 +11,10 @@
 #
 set -euo pipefail
 
+# `vercel` prefers VERCEL_TOKEN over `vercel login`. A placeholder like "…" in the env
+# causes: "Invalid token value ... must not contain: …" — clear it for CLI session auth.
+unset VERCEL_TOKEN 2>/dev/null || true
+
 export CI=1
 export VERCEL_NONINTERACTIVE=1
 
@@ -29,6 +33,8 @@ set -a
 # shellcheck disable=SC1091
 source "$REPO_ROOT/transportistas_sync/.env"
 set +a
+
+unset VERCEL_TOKEN 2>/dev/null || true
 
 AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-$(aws configure get aws_access_key_id 2>/dev/null || true)}"
 AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-$(aws configure get aws_secret_access_key 2>/dev/null || true)}"
