@@ -6,6 +6,7 @@
  *   export VERCEL_TOKEN=...   # https://vercel.com/account/tokens
  *   npm run vercel:push-env
  *
+ * Prefer `npm run vercel:sync-env` if you use `vercel login` (no token; same as before).
  * Optional: VERCEL_TEAM_ID=team_xxx  (override team from .vercel/project.json if 403)
  *
  * Loads secrets from ../../transportistas_sync/.env; merges AWS keys from `aws configure`

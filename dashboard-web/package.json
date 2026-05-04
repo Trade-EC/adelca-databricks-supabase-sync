@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
+    "vercel:sync-env": "bash scripts/sync-vercel-env-production.sh",
     "vercel:push-env": "node scripts/push-vercel-env.mjs"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^53.1.0"
   }
 }
