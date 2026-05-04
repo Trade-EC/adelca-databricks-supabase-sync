@@ -20,7 +20,7 @@ export async function GET() {
     return NextResponse.json(
       {
         error: message,
-        hint: "Si el mensaje citó ERR_REQUIRE_ESM o AWS SDK, revisa último deploy y next.config serverExternalPackages; verifica logs Vercel.",
+        hint: "Revisa logs Vercel y credenciales AWS (Lambda/Logs/S3 usan SigV4 vía fetch).",
       },
       { status: 500, headers: noStore }
     );

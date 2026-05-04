@@ -5,7 +5,7 @@ import { supabaseLastRun } from "./supabase";
  * Prefer `etl_runs` in Supabase; if missing or empty, use Lambda S3 checkpoint
  * `s3://{bucket}/{etl-success}/{pipeline}/latest.json`.
  *
- * `@aws-sdk/client-s3` is loaded only via dynamic import when needed (fewer bootstrap failures on Vercel).
+ * S3 checkpoints use SigV4 fetch (no AWS SDK) in `s3-checkpoint`, loaded only when needed via dynamic import.
  */
 export async function resolveLastRun(pipelineName: string, profile: SupabaseProfile) {
   const fromDb = await supabaseLastRun(pipelineName, profile);

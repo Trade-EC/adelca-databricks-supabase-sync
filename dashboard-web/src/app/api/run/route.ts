@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+import { invokeLambdaPipeline } from "@/lib/aws-signed-api";
 import { appConfig } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -18,17 +18,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const lambda = new LambdaClient({ region: appConfig.region });
-    const result = await lambda.send(
-      new InvokeCommand({
-        FunctionName: appConfig.lambdaName,
-        InvocationType: "RequestResponse",
-        Payload: Buffer.from(JSON.stringify({ pipeline_name: pipelineName })),
-      })
-    );
-    const payload = JSON.parse(Buffer.from(result.Payload || []).toString("utf8") || "{}");
+    const result = await invokeLambdaPipeline(appConfig.region, appConfig.lambdaName, {
+      pipeline_name: pipelineName,
+    });
+    if (!result.ok) {
+      return NextResponse.json(
+        { status: "error", message: `${result.text} (${result.status})` },
+        { status: 500, headers: noStore }
+      );
+    }
+    if (result.functionError) {
+      return NextResponse.json(
+        { status: "error", message: "Lambda returned an error", lambda_response: result.body },
+        { status: 502, headers: noStore }
+      );
+    }
     return NextResponse.json(
-      { status: "ok", lambda_response: payload },
+      { status: "ok", lambda_response: result.body },
       { headers: noStore }
     );
   } catch (error) {

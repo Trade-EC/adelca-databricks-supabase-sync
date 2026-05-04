@@ -1,4 +1,4 @@
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { s3GetText } from "./aws-signed-api";
 import { appConfig } from "./config";
 
 export type S3EtlCheckpoint = {
@@ -18,23 +18,17 @@ export async function fetchCheckpointFromS3(
   if (!appConfig.etlLogsBucket) return null;
 
   const key = `${appConfig.etlSuccessPrefix}/${pipelineName}/latest.json`;
-  const s3 = new S3Client({ region: appConfig.region });
+
   try {
-    const res = await s3.send(
-      new GetObjectCommand({
-        Bucket: appConfig.etlLogsBucket,
-        Key: key,
-      })
-    );
-    const raw = await res.Body?.transformToString();
-    if (!raw) return null;
-    return JSON.parse(raw) as S3EtlCheckpoint;
-  } catch (e: unknown) {
-    const err = e as { name?: string; $metadata?: { httpStatusCode?: number } };
-    if (err.name === "NoSuchKey" || err.$metadata?.httpStatusCode === 404) {
+    const res = await s3GetText(appConfig.region, appConfig.etlLogsBucket, key);
+    if (!res.ok) {
+      if (res.status === 404 || res.status === 403) return null;
+      console.warn("S3 ETL checkpoint read failed", pipelineName, res.status);
       return null;
     }
-    console.warn("S3 ETL checkpoint read failed", pipelineName, e);
+    return JSON.parse(res.text) as S3EtlCheckpoint;
+  } catch (e) {
+    console.warn("S3 ETL checkpoint parse failed", pipelineName, e);
     return null;
   }
 }

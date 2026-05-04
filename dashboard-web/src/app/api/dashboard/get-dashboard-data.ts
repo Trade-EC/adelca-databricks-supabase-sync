@@ -1,8 +1,7 @@
-import { LambdaClient, GetFunctionConfigurationCommand } from "@aws-sdk/client-lambda";
 import {
-  CloudWatchLogsClient,
-  DescribeLogStreamsCommand,
-} from "@aws-sdk/client-cloudwatch-logs";
+  fetchLambdaDashboardInfo,
+  fetchRecentLambdaLogStreams,
+} from "@/lib/aws-signed-api";
 import { appConfig } from "@/lib/config";
 import { readPipelines } from "@/lib/pipelines";
 import { countSourceRows, maxSourceAuditCreatedAt } from "@/lib/databricks";
@@ -12,8 +11,6 @@ import { resolveLastRun } from "@/lib/last-run";
 /** Separated into its own chunk so `route.ts` can dynamic-import and always return JSON on load failure (Vercel HTML 500 otherwise). */
 export async function buildDashboardPayload() {
   const pipelines = readPipelines();
-  const lambda = new LambdaClient({ region: appConfig.region });
-  const logs = new CloudWatchLogsClient({ region: appConfig.region });
 
   let lambdaInfo: {
     Runtime?: string;
@@ -23,24 +20,25 @@ export async function buildDashboardPayload() {
   } | null = null;
   let executions: { stream?: string; last_event?: number }[] = [];
   let awsError: string | null = null;
+
   try {
-    const [li, exec] = await Promise.all([
-      lambda.send(new GetFunctionConfigurationCommand({ FunctionName: appConfig.lambdaName })),
-      logs.send(
-        new DescribeLogStreamsCommand({
-          logGroupName: `/aws/lambda/${appConfig.lambdaName}`,
-          orderBy: "LastEventTime",
-          descending: true,
-          limit: 10,
-        })
-      ),
+    const [lc, ls] = await Promise.all([
+      fetchLambdaDashboardInfo(appConfig.region, appConfig.lambdaName),
+      fetchRecentLambdaLogStreams(appConfig.region, appConfig.lambdaName, 10),
     ]);
-    lambdaInfo = li;
-    executions =
-      exec.logStreams?.map((s) => ({
+
+    const parts: string[] = [];
+    if (!lc.ok) parts.push(`Lambda: ${lc.text} (${lc.status})`);
+    if (!ls.ok) parts.push(`Logs: ${ls.text} (${ls.status})`);
+    awsError = parts.length ? parts.join(" | ") : null;
+
+    if (lc.ok && lc.data) lambdaInfo = lc.data;
+    if (ls.ok) {
+      executions = ls.streams.map((s) => ({
         stream: s.logStreamName,
         last_event: s.lastEventTimestamp,
-      })) || [];
+      }));
+    }
   } catch (e) {
     awsError = e instanceof Error ? e.message : "AWS Lambda / CloudWatch error";
     console.error("dashboard AWS metadata failed:", e);
