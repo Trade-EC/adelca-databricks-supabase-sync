@@ -3,11 +3,15 @@
  * Push env vars to Vercel Production via REST API (no npx / no CLI hang).
  *
  *   cd dashboard-web
- *   export VERCEL_TOKEN=...   # https://vercel.com/account/tokens (scope: full account or team)
+ *   export VERCEL_TOKEN=...   # https://vercel.com/account/tokens
  *   npm run vercel:push-env
  *
- * Loads secrets from ../../transportistas_sync/.env (same as the bash sync script).
+ * Optional: VERCEL_TEAM_ID=team_xxx  (override team from .vercel/project.json if 403)
+ *
+ * Loads secrets from ../../transportistas_sync/.env; merges AWS keys from `aws configure`
+ * when missing in .env (same behaviour as the old bash script).
  */
+import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -25,9 +29,10 @@ if (!fs.existsSync(projectJsonPath)) {
   process.exit(1);
 }
 
-const { projectId: PROJECT_ID, orgId: TEAM_ID } = JSON.parse(
-  fs.readFileSync(projectJsonPath, "utf8")
-);
+const projectJson = JSON.parse(fs.readFileSync(projectJsonPath, "utf8"));
+const PROJECT_ID = projectJson.projectId;
+/** Prefer explicit override if token only sees one team / 403 with linked project orgId */
+const TEAM_ID = process.env.VERCEL_TEAM_ID || projectJson.orgId;
 
 const TOKEN = process.env.VERCEL_TOKEN;
 if (!TOKEN) {
@@ -37,7 +42,6 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-/** Same keys as scripts/sync-vercel-env-production.sh — order preserved */
 const KEYS = [
   "AWS_REGION",
   "LAMBDA_NAME",
@@ -58,13 +62,29 @@ const KEYS = [
   "ETL_SUCCESS_PREFIX",
 ];
 
+function awsConfigureGet(name) {
+  try {
+    return execSync(`aws configure get ${name}`, { encoding: "utf8" }).trim() || "";
+  } catch {
+    return "";
+  }
+}
+
 function applyDefaults() {
-  if (!process.env.AWS_REGION) process.env.AWS_REGION = "us-east-1";
+  if (!process.env.AWS_REGION) {
+    process.env.AWS_REGION = awsConfigureGet("region") || "us-east-1";
+  }
   if (!process.env.LAMBDA_NAME) process.env.LAMBDA_NAME = "patek-philippe";
   if (!process.env.ETL_LOGS_BUCKET) {
     process.env.ETL_LOGS_BUCKET = "patek-philippe-etl-logs-052124708820";
   }
   if (!process.env.ETL_SUCCESS_PREFIX) process.env.ETL_SUCCESS_PREFIX = "etl-success";
+  if (!process.env.AWS_ACCESS_KEY_ID) {
+    process.env.AWS_ACCESS_KEY_ID = awsConfigureGet("aws_access_key_id");
+  }
+  if (!process.env.AWS_SECRET_ACCESS_KEY) {
+    process.env.AWS_SECRET_ACCESS_KEY = awsConfigureGet("aws_secret_access_key");
+  }
 }
 
 async function api(method, url, body) {
@@ -85,25 +105,40 @@ async function api(method, url, body) {
   }
   if (!res.ok) {
     const snippet =
-      typeof data === "string" ? data.slice(0, 400) : JSON.stringify(data).slice(0, 400);
-    throw new Error(`${method} ${url} → ${res.status}: ${snippet}`);
+      typeof data === "string" ? data.slice(0, 500) : JSON.stringify(data).slice(0, 500);
+    const err = new Error(`${method} → ${res.status}: ${snippet}`);
+    err.status = res.status;
+    err.body = data;
+    throw err;
   }
   return data;
 }
 
-async function listEnvs() {
-  const url = `https://api.vercel.com/v9/projects/${PROJECT_ID}/env?teamId=${encodeURIComponent(TEAM_ID)}`;
-  return api("GET", url);
+async function listAllEnvs() {
+  const q = new URLSearchParams({ teamId: TEAM_ID, decrypt: "false" });
+  const url = `https://api.vercel.com/v9/projects/${encodeURIComponent(PROJECT_ID)}/env?${q}`;
+  const data = await api("GET", url);
+  return data.envs || [];
 }
 
 async function deleteEnv(envId) {
-  const url = `https://api.vercel.com/v9/projects/${PROJECT_ID}/env/${envId}?teamId=${encodeURIComponent(TEAM_ID)}`;
+  const url = `https://api.vercel.com/v9/projects/${encodeURIComponent(PROJECT_ID)}/env/${encodeURIComponent(envId)}?teamId=${encodeURIComponent(TEAM_ID)}`;
   return api("DELETE", url);
 }
 
 async function createEnv(key, value) {
-  const url = `https://api.vercel.com/v9/projects/${PROJECT_ID}/env?teamId=${encodeURIComponent(TEAM_ID)}`;
+  const url = `https://api.vercel.com/v9/projects/${encodeURIComponent(PROJECT_ID)}/env?teamId=${encodeURIComponent(TEAM_ID)}`;
   return api("POST", url, {
+    key,
+    value,
+    type: "encrypted",
+    target: ["production"],
+  });
+}
+
+async function patchEnv(envId, key, value) {
+  const url = `https://api.vercel.com/v9/projects/${encodeURIComponent(PROJECT_ID)}/env/${encodeURIComponent(envId)}?teamId=${encodeURIComponent(TEAM_ID)}`;
+  return api("PATCH", url, {
     key,
     value,
     type: "encrypted",
@@ -117,32 +152,70 @@ function targetsProduction(entry) {
   return Array.isArray(t) ? t.includes("production") : t === "production";
 }
 
-applyDefaults();
-
-console.log(`Project ${PROJECT_ID} (team ${TEAM_ID})`);
-console.log("Listing existing Production env keys…");
-
-const listed = await listEnvs();
-const envs = listed.envs || [];
-
-for (const key of KEYS) {
-  const value = process.env[key];
-  if (value === undefined || value === "") {
-    console.log(`⊘ skip ${key} (empty)`);
-    continue;
+function hint403(err) {
+  const body = err.body;
+  const invalid =
+    body &&
+    typeof body === "object" &&
+    body.error?.invalidToken === true;
+  console.error("\n---");
+  if (err.status === 403 || invalid) {
+    console.error(
+      "Token inválido o sin acceso al equipo del proyecto. Prueba:\n" +
+        "  - Crear un token nuevo en https://vercel.com/account/tokens (Full Account).\n" +
+        "  - Asegurarte de que tu usuario pertenezca al equipo del proyecto.\n" +
+        "  - Si sigue 403: export VERCEL_TEAM_ID=team_… (ID del equipo en Vercel → Settings → Team ID)."
+    );
   }
-
-  const duplicates = envs.filter((e) => e.key === key && targetsProduction(e));
-  for (const e of duplicates) {
-    console.log(`  remove old ${key} (${e.id})`);
-    await deleteEnv(e.id);
-  }
-
-  console.log(`→ set ${key}`);
-  await createEnv(key, value);
+  console.error("---\n");
 }
 
-console.log("\nDone. Redeploy production from repo root:");
-console.log(
-  `  cd "${repoRoot}" && npx vercel deploy --prod --yes --scope adelca-lineas-transportistas`
-);
+async function main() {
+  applyDefaults();
+
+  console.log(`Project ${PROJECT_ID} (team ${TEAM_ID})`);
+  console.log("Listing env vars…");
+
+  let envs;
+  try {
+    envs = await listAllEnvs();
+  } catch (e) {
+    hint403(e);
+    throw e;
+  }
+
+  for (const key of KEYS) {
+    const value = process.env[key];
+    if (value === undefined || value === "") {
+      console.log(`⊘ skip ${key} (empty)`);
+      continue;
+    }
+
+    const matches = envs.filter((e) => e.key === key && targetsProduction(e));
+    if (matches.length > 1) {
+      for (const extra of matches.slice(1)) {
+        console.log(`  dedupe ${key} (${extra.id})`);
+        await deleteEnv(extra.id);
+      }
+    }
+
+    const existing = matches[0];
+    if (existing) {
+      console.log(`↻ patch ${key}`);
+      await patchEnv(existing.id, key, value);
+    } else {
+      console.log(`→ create ${key}`);
+      await createEnv(key, value);
+    }
+  }
+
+  console.log("\nDone. Redeploy production from repo root:");
+  console.log(
+    `  cd "${repoRoot}" && npx vercel deploy --prod --yes --scope adelca-lineas-transportistas`
+  );
+}
+
+main().catch((e) => {
+  console.error(e.message || e);
+  process.exit(1);
+});
