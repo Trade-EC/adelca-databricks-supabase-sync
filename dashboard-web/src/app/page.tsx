@@ -67,9 +67,11 @@ export default function Home() {
           `Respuesta no JSON (${res.status}); suele ser HTML de error del servidor. Revisa variables en Vercel.`
         );
       }
-      const body = json as { error?: string };
+      const body = json as { error?: string; hint?: string };
       if (!res.ok) {
-        throw new Error(body?.error || "Failed to load dashboard");
+        throw new Error(
+          [body?.error, body?.hint].filter(Boolean).join(" — ") || "Failed to load dashboard"
+        );
       }
       setData(body as DashboardPayload);
       setLoadError(null);

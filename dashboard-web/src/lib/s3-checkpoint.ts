@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { appConfig } from "./config";
 
 export type S3EtlCheckpoint = {
@@ -12,14 +12,13 @@ export type S3EtlCheckpoint = {
   full_log_uri?: string | null;
 };
 
-const s3 = new S3Client({ region: appConfig.region });
-
 export async function fetchCheckpointFromS3(
   pipelineName: string
 ): Promise<S3EtlCheckpoint | null> {
   if (!appConfig.etlLogsBucket) return null;
 
   const key = `${appConfig.etlSuccessPrefix}/${pipelineName}/latest.json`;
+  const s3 = new S3Client({ region: appConfig.region });
   try {
     const res = await s3.send(
       new GetObjectCommand({
