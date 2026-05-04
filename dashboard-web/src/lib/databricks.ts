@@ -40,6 +40,16 @@ async function runStatement(
     httpPath = appConfig.databricksQasHttpPath;
     token = appConfig.databricksQasToken;
   } else {
+    if (
+      !appConfig.databricksHost ||
+      !appConfig.databricksHttpPath ||
+      !appConfig.databricksClientId ||
+      !appConfig.databricksClientSecret
+    ) {
+      throw new Error(
+        "Configure DATABRICKS_PRD_HOST, DATABRICKS_PRD_HTTP_PATH, DATABRICKS_PRD_CLIENT_ID, DATABRICKS_PRD_CLIENT_SECRET"
+      );
+    }
     host = appConfig.databricksHost;
     httpPath = appConfig.databricksHttpPath;
     token = await getPrdToken();

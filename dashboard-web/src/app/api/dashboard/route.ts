@@ -12,23 +12,44 @@ import { resolveLastRun } from "@/lib/last-run";
 
 export const dynamic = "force-dynamic";
 
+const noStore = { "Cache-Control": "no-store, must-revalidate" as const };
+
 export async function GET() {
   try {
     const pipelines = readPipelines();
     const lambda = new LambdaClient({ region: appConfig.region });
     const logs = new CloudWatchLogsClient({ region: appConfig.region });
 
-    const [lambdaInfo, executions] = await Promise.all([
-      lambda.send(new GetFunctionConfigurationCommand({ FunctionName: appConfig.lambdaName })),
-      logs.send(
-        new DescribeLogStreamsCommand({
-          logGroupName: `/aws/lambda/${appConfig.lambdaName}`,
-          orderBy: "LastEventTime",
-          descending: true,
-          limit: 10,
-        })
-      ),
-    ]);
+    let lambdaInfo: {
+      Runtime?: string;
+      MemorySize?: number;
+      Timeout?: number;
+      State?: string;
+    } | null = null;
+    let executions: { stream?: string; last_event?: number }[] = [];
+    let awsError: string | null = null;
+    try {
+      const [li, exec] = await Promise.all([
+        lambda.send(new GetFunctionConfigurationCommand({ FunctionName: appConfig.lambdaName })),
+        logs.send(
+          new DescribeLogStreamsCommand({
+            logGroupName: `/aws/lambda/${appConfig.lambdaName}`,
+            orderBy: "LastEventTime",
+            descending: true,
+            limit: 10,
+          })
+        ),
+      ]);
+      lambdaInfo = li;
+      executions =
+        exec.logStreams?.map((s) => ({
+          stream: s.logStreamName,
+          last_event: s.lastEventTimestamp,
+        })) || [];
+    } catch (e) {
+      awsError = e instanceof Error ? e.message : "AWS Lambda / CloudWatch error";
+      console.error("dashboard /api/dashboard AWS metadata failed:", e);
+    }
 
     const rows = await Promise.all(
       pipelines.map(async (p) => {
@@ -74,26 +95,26 @@ export async function GET() {
       })
     );
 
-    return NextResponse.json({
-      timestamp: new Date().toISOString(),
-      lambda: {
-        name: appConfig.lambdaName,
-        runtime: lambdaInfo.Runtime,
-        memory: lambdaInfo.MemorySize,
-        timeout: lambdaInfo.Timeout,
-        state: lambdaInfo.State,
+    return NextResponse.json(
+      {
+        timestamp: new Date().toISOString(),
+        lambda: {
+          name: appConfig.lambdaName,
+          runtime: lambdaInfo?.Runtime ?? "—",
+          memory: lambdaInfo?.MemorySize ?? 0,
+          timeout: lambdaInfo?.Timeout ?? 0,
+          state: lambdaInfo?.State ?? (awsError ? "unavailable" : "unknown"),
+        },
+        aws_error: awsError,
+        executions,
+        pipelines: rows,
       },
-      executions:
-        executions.logStreams?.map((s) => ({
-          stream: s.logStreamName,
-          last_event: s.lastEventTimestamp,
-        })) || [],
-      pipelines: rows,
-    });
+      { headers: noStore }
+    );
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      { status: 500, headers: noStore }
     );
   }
 }

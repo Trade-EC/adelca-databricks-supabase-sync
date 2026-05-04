@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type RunInfo = {
   status: string;
@@ -35,6 +35,8 @@ type PipelineRow = {
 type DashboardPayload = {
   timestamp: string;
   lambda: { name: string; runtime: string; memory: number; timeout: number; state: string };
+  aws_error?: string | null;
+  executions?: { stream?: string; last_event?: number }[];
   pipelines: PipelineRow[];
 };
 
@@ -53,14 +55,23 @@ export default function Home() {
     >
   >({});
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/dashboard");
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json?.error || "Failed to load dashboard");
+      const res = await fetch("/api/dashboard", { cache: "no-store" });
+      const text = await res.text();
+      let json: unknown;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(
+          `Respuesta no JSON (${res.status}); suele ser HTML de error del servidor. Revisa variables en Vercel.`
+        );
       }
-      setData(json);
+      const body = json as { error?: string };
+      if (!res.ok) {
+        throw new Error(body?.error || "Failed to load dashboard");
+      }
+      setData(body as DashboardPayload);
       setLoadError(null);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to load dashboard";
@@ -68,7 +79,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const runPipeline = async (pipelineName: string) => {
     try {
@@ -103,10 +114,17 @@ export default function Home() {
   };
 
   useEffect(() => {
-    load().catch(console.error);
-    const id = setInterval(() => load().catch(console.error), 30000);
-    return () => clearInterval(id);
-  }, []);
+    const scheduled = window.setTimeout(() => {
+      load().catch(console.error);
+    }, 0);
+    const id = window.setInterval(() => {
+      load().catch(console.error);
+    }, 30000);
+    return () => {
+      window.clearTimeout(scheduled);
+      window.clearInterval(id);
+    };
+  }, [load]);
 
   return (
     <main className="min-h-screen p-8">
@@ -117,6 +135,12 @@ export default function Home() {
             Updated: {data?.timestamp ?? "loading..."} | Lambda: {data?.lambda?.name ?? "-"} (
             {data?.lambda?.runtime ?? "-"})
           </p>
+          {data?.aws_error ? (
+            <p className="mt-2 text-xs text-amber-300">
+              AWS (metadata): {data.aws_error} — tabla de pipelines puede seguir cargando; revisa
+              AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / IAM y LAMBDA_NAME en Vercel.
+            </p>
+          ) : null}
         </header>
 
         <section className="rounded-xl border border-zinc-700 bg-zinc-900 p-4 overflow-x-auto">

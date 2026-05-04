@@ -4,12 +4,17 @@ import { appConfig } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
+const noStore = { "Cache-Control": "no-store, must-revalidate" as const };
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const pipelineName = body?.pipeline_name;
     if (!pipelineName) {
-      return NextResponse.json({ error: "pipeline_name is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "pipeline_name is required" },
+        { status: 400, headers: noStore }
+      );
     }
 
     const lambda = new LambdaClient({ region: appConfig.region });
@@ -21,11 +26,14 @@ export async function POST(req: Request) {
       })
     );
     const payload = JSON.parse(Buffer.from(result.Payload || []).toString("utf8") || "{}");
-    return NextResponse.json({ status: "ok", lambda_response: payload });
+    return NextResponse.json(
+      { status: "ok", lambda_response: payload },
+      { headers: noStore }
+    );
   } catch (error) {
     return NextResponse.json(
       { status: "error", message: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      { status: 500, headers: noStore }
     );
   }
 }

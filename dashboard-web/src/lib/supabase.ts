@@ -12,12 +12,20 @@ function credsForProfile(profile: SupabaseProfile = "default") {
       supabaseKey: appConfig.supabaseSecondaryKey,
     };
   }
+  if (!appConfig.supabaseUrl || !appConfig.supabaseKey) {
+    return null;
+  }
   return { supabaseUrl: appConfig.supabaseUrl, supabaseKey: appConfig.supabaseKey };
 }
 
 function headersForProfile(profile: SupabaseProfile, extra?: Record<string, string>) {
   const c = credsForProfile(profile);
-  if (!c) throw new Error("Secondary Supabase not configured (SUPABASE_SECONDARY_*)");
+  if (!c)
+    throw new Error(
+      profile === "secondary"
+        ? "Secondary Supabase not configured (SUPABASE_SECONDARY_URL / SUPABASE_SECONDARY_SERVICE_ROLE_KEY)"
+        : "Default Supabase not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)"
+    );
   return {
     apikey: c.supabaseKey,
     Authorization: `Bearer ${c.supabaseKey}`,
