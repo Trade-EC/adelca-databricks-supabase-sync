@@ -11,6 +11,8 @@ import { supabaseCount, supabaseDatamartWatermark, supabaseLastWatermark } from 
 import { resolveLastRun } from "@/lib/last-run";
 
 export const dynamic = "force-dynamic";
+/** Vercel: default ~10s on Hobby; Databricks COUNT×pipelines often needs more. Pro/Enterprise can use 60+. */
+export const maxDuration = 60;
 
 const noStore = { "Cache-Control": "no-store, must-revalidate" as const };
 

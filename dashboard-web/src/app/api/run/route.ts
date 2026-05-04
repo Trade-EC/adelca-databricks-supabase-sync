@@ -3,6 +3,7 @@ import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import { appConfig } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 const noStore = { "Cache-Control": "no-store, must-revalidate" as const };
 
