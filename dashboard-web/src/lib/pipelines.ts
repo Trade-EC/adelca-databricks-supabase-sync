@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import pipelinesRaw from "../../pipelines.json";
 
 export type PipelineConfig = {
   pipeline_name: string;
@@ -18,9 +17,11 @@ export type PipelineConfig = {
 
 type PipelinesMap = Record<string, PipelineConfig>;
 
+/**
+ * Bundled at build time so `/api/dashboard` works on Vercel: `process.cwd()` there is often
+ * the monorepo root, not `dashboard-web`, so `fs.readFileSync("pipelines.json")` was missing the file.
+ */
 export function readPipelines(): PipelineConfig[] {
-  const filePath = path.resolve(process.cwd(), "pipelines.json");
-  const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as PipelinesMap;
-  return Object.values(parsed);
+  return Object.values(pipelinesRaw as PipelinesMap);
 }
 
