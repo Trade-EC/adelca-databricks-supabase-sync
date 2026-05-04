@@ -71,7 +71,7 @@ export async function fetchRecentLambdaLogStreams(
     body,
     extraHeaders: {
       "Content-Type": "application/x-amz-json-1.1",
-      "X-Amz-Target": "Logs_20140301.DescribeLogStreams",
+      "X-Amz-Target": "Logs_20140328.DescribeLogStreams",
     },
   });
   const text = await res.text();
