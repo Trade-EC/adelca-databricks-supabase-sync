@@ -14,6 +14,10 @@
     "socio_adelca_ferreterias": {
       "invoke": { "pipeline_name": "socio_adelca_ferreterias" },
       "notes": "dim_ferreterias_mtz → hardware_stores (secondary); id = uuid5(codigo_cliente); skip_source_deduplicate"
+    },
+    "socio_adelca_grupos": {
+      "invoke": { "pipeline_name": "socio_adelca_grupos" },
+      "notes": "dim_grupos_ferreteros_mtz → hardware_store_groups (secondary); id = uuid5(id_grupo)"
     }
   }
 }

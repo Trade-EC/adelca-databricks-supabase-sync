@@ -133,6 +133,13 @@ Resources:
             Description: Ferreterias Adelca (dim_ferreterias_mtz → hardware_stores) — manual por defecto
             Enabled: false
             Input: '{"pipeline_name":"socio_adelca_ferreterias"}'
+        ScheduledGruposFerreterosSync:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Grupos ferreteros (dim_grupos_ferreteros_mtz → hardware_store_groups) — manual por defecto
+            Enabled: false
+            Input: '{"pipeline_name":"socio_adelca_grupos"}'
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:

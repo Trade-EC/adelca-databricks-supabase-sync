@@ -80,3 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_etl_runs_pipeline_created_at
 --   id, tax_id, customer_code, name, group_name, is_hardware_store, is_hardware_chain, has_group,
 --   city, province, phone, email, sales_rep_name, sales_rep_email, sales_rep_phone, synced_at
 -- uuidv5(ruc) → id; write_mode upsert; campos MTZ no mapeados: codigo_asesor_comercial, fecha_corte, regla_version.
+
+-- Pipeline socio_adelca_grupos: QAS qas.aplicaciones.dim_grupos_ferreteros_mtz → public.hardware_store_groups (secondary).
+-- Columnas típicas en destino: id, group_name, city, sales_rep_code, sales_rep_name, sales_rep_email, sales_rep_phone, synced_at
+-- id = uuid5(id_grupo). No mapeados desde MTZ: total_ferreterias_asociadas, total_con_flag_ferretero, total_con_flag_cadena, fecha_corte, regla_version.

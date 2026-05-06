@@ -83,3 +83,11 @@ Ferreterías / `hardware_stores` (secondary):
 ```
 
 Referencia de payloads por pipeline: `pipeline_registry.json`.
+
+Grupos ferreteros → `hardware_store_groups` (secondary):
+
+```json
+{
+  "pipeline_name": "socio_adelca_grupos"
+}
+```

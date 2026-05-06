@@ -143,5 +143,43 @@
     "include_ingested_at": true,
     "sync_timestamp_column": "synced_at",
     "datamart_timestamp_column": "synced_at"
+  },
+  "socio_adelca_grupos": {
+    "pipeline_name": "socio_adelca_grupos",
+    "databricks_profile": "qas",
+    "supabase_profile": "secondary",
+    "row_mode": "generic",
+    "source_table": "qas.aplicaciones.dim_grupos_ferreteros_mtz",
+    "target_table": "hardware_store_groups",
+    "write_mode": "upsert",
+    "conflict_key": "id",
+    "require_non_null": ["id_grupo"],
+    "batch_size": 500,
+    "schedule": "manual",
+    "column_mapping": [
+      { "source": "id_grupo", "target": "group_name" },
+      { "source": "ciudad", "target": "city" },
+      { "source": "codigo_asesor_comercial", "target": "sales_rep_code" },
+      { "source": "asesor_comercial_nombre", "target": "sales_rep_name" },
+      { "source": "asesor_comercial_email", "target": "sales_rep_email" },
+      { "source": "celular_asesor_comercial", "target": "sales_rep_phone" }
+    ],
+    "id_strategy": {
+      "type": "uuid5_from_source",
+      "column": "id",
+      "source_column": "id_grupo",
+      "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
+    },
+    "null_coalesce": {
+      "group_name": "",
+      "city": "",
+      "sales_rep_code": "",
+      "sales_rep_name": "",
+      "sales_rep_email": "",
+      "sales_rep_phone": ""
+    },
+    "include_ingested_at": true,
+    "sync_timestamp_column": "synced_at",
+    "datamart_timestamp_column": "synced_at"
   }
 }
