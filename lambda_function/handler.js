@@ -250,7 +250,15 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
       const si = sourceIndex[idS.source_column];
       const ns = idS.namespace || UUID_NAMESPACE;
       if (si !== undefined && row[si] != null) {
-        record[idS.column] = uuidv5(String(row[si]).trim(), ns);
+        const generatedUuid = uuidv5(String(row[si]).trim(), ns);
+        record[idS.column] = generatedUuid;
+        const dup = idS.duplicate_uuid_to;
+        if (dup) {
+          const cols = Array.isArray(dup) ? dup : [dup];
+          for (const c of cols) {
+            if (c && typeof c === "string") record[c] = generatedUuid;
+          }
+        }
       }
     }
     if (includeIngested) {
@@ -581,7 +589,9 @@ async function runSyncForPipeline(event) {
   if (!dbxRows.length) {
     return { status: "no_data", inserted: 0, total: countBefore, pipeline_name: pipelineName };
   }
-  dbxRows = deduplicateRows(dbxRows, pipelineConfig);
+  if (!pipelineConfig.skip_source_deduplicate) {
+    dbxRows = deduplicateRows(dbxRows, pipelineConfig);
+  }
 
   const { newRows, allRows } = splitRowsByMode(dbxRows, pipelineConfig, existing, now);
   logInfo("Sync split", {

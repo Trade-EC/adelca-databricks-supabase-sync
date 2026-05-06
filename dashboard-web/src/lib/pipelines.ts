@@ -13,6 +13,8 @@ export type PipelineConfig = {
   row_mode?: "transportistas" | "generic";
   /** Column for MAX() in dashboard (default _ingested_at) */
   datamart_timestamp_column?: string;
+  /** When true, do not collapse duplicate keys from Databricks before load (handler). */
+  skip_source_deduplicate?: boolean;
 };
 
 type PipelinesMap = Record<string, PipelineConfig>;

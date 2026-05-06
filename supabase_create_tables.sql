@@ -74,3 +74,9 @@ CREATE INDEX IF NOT EXISTS idx_etl_runs_pipeline_created_at
 -- Pipeline 2: QAS qas.aplicaciones.dim_vehiculos → public.vehicles (secondary Supabase).
 -- The live `vehicles` table is app-defined; typical columns: id, license_plate, type, model,
 -- weight_average_capacity, weight_average_capacity_unit, fleet_owner_unique_code, is_route_based, synced_at.
+
+-- Pipeline socio_adelca_ferreterias: QAS qas.aplicaciones.dim_ferreterias_mtz → public.hardware_stores (secondary).
+-- La app define la tabla; ejemplo de columnas alineadas al ETL (PostgREST):
+--   id, tax_id, customer_code, name, group_name, is_hardware_store, is_hardware_chain, has_group,
+--   city, province, phone, email, sales_rep_name, sales_rep_email, sales_rep_phone, synced_at
+-- uuidv5(ruc) → id; write_mode upsert; campos MTZ no mapeados: codigo_asesor_comercial, fecha_corte, regla_version.

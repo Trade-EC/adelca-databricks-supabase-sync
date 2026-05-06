@@ -73,3 +73,13 @@ Para un registro operacional **sin** Supabase, basta con S3 + `SKIP_ETL_WATERMAR
   "pipeline_name": "transportistas"
 }
 ```
+
+Ferreterías / `hardware_stores` (secondary):
+
+```json
+{
+  "pipeline_name": "socio_adelca_ferreterias"
+}
+```
+
+Referencia de payloads por pipeline: `pipeline_registry.json`.

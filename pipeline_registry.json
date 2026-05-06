@@ -1,0 +1,19 @@
+{
+  "lambda_function_name": "patek-philippe",
+  "pipelines_config": "lambda_function/pipelines.json",
+  "pipelines": {
+    "transportistas": {
+      "invoke": { "pipeline_name": "transportistas" }
+    },
+    "vehiculos": {
+      "invoke": { "pipeline_name": "vehiculos" }
+    },
+    "viajes": {
+      "invoke": { "pipeline_name": "viajes" }
+    },
+    "socio_adelca_ferreterias": {
+      "invoke": { "pipeline_name": "socio_adelca_ferreterias" },
+      "notes": "dim_ferreterias_mtz → hardware_stores (secondary); id = uuid5(codigo_cliente); skip_source_deduplicate"
+    }
+  }
+}

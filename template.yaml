@@ -126,6 +126,13 @@ Resources:
             Description: Scheduled Databricks QAS to secondary Supabase sync
             Enabled: true
             Input: '{"pipeline_name":"vehiculos"}'
+        ScheduledFerreteriasSync:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Ferreterias Adelca (dim_ferreterias_mtz → hardware_stores) — manual por defecto
+            Enabled: false
+            Input: '{"pipeline_name":"socio_adelca_ferreterias"}'
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:
