@@ -126,19 +126,26 @@ Resources:
             Description: Scheduled Databricks QAS to secondary Supabase sync
             Enabled: true
             Input: '{"pipeline_name":"vehiculos"}'
+        ScheduledViajesSync:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Viajes (fact_transportistas_viajes → ct_freights) — daily with other pipelines
+            Enabled: true
+            Input: '{"pipeline_name":"viajes"}'
         ScheduledFerreteriasSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Ferreterias Adelca (dim_ferreterias_mtz → hardware_stores) — manual por defecto
-            Enabled: false
+            Description: Ferreterias Adelca (dim_ferreterias_mtz → hardware_stores)
+            Enabled: true
             Input: '{"pipeline_name":"socio_adelca_ferreterias"}'
         ScheduledGruposFerreterosSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Grupos ferreteros (dim_grupos_ferreteros_mtz → hardware_store_groups) — manual por defecto
-            Enabled: false
+            Description: Grupos ferreteros (dim_grupos_ferreteros_mtz → hardware_store_groups)
+            Enabled: true
             Input: '{"pipeline_name":"socio_adelca_grupos"}'
       Policies:
         - AWSLambdaBasicExecutionRole

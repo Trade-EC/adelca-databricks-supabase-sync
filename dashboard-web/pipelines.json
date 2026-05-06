@@ -36,7 +36,7 @@
     "conflict_key": "license_plate",
     "require_non_null": ["placa"],
     "batch_size": 500,
-    "schedule": "manual",
+    "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       { "source": "placa", "target": "license_plate" },
       { "source": "tipo_trasporte", "target": "type" },
@@ -72,7 +72,7 @@
     "conflict_key": "id",
     "require_non_null": ["codigo_viaje"],
     "batch_size": 500,
-    "schedule": "manual",
+    "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       { "source": "codigo_viaje", "target": "freight_code" },
       { "source": "fecha", "target": "assignment_date" },
@@ -104,7 +104,7 @@
     "skip_source_deduplicate": true,
     "require_non_null": ["codigo_cliente", "ruc"],
     "batch_size": 500,
-    "schedule": "manual",
+    "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       { "source": "ruc", "target": "tax_id" },
       { "source": "codigo_cliente", "target": "customer_code" },
@@ -155,7 +155,7 @@
     "conflict_key": "id",
     "require_non_null": ["id_grupo"],
     "batch_size": 500,
-    "schedule": "manual",
+    "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       { "source": "id_grupo", "target": "group_name" },
       { "source": "ciudad", "target": "city" },
