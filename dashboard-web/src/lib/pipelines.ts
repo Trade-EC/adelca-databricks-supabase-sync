@@ -19,11 +19,25 @@ export type PipelineConfig = {
 
 type PipelinesMap = Record<string, PipelineConfig>;
 
+/** Display order in the dashboard table (unknown names sort last, alphabetically). */
+const PIPELINE_ORDER: Record<string, number> = {
+  transportistas: 0,
+  vehiculos: 1,
+  viajes: 2,
+  socio_adelca_ferreterias: 3,
+};
+
 /**
  * Bundled at build time so `/api/dashboard` works on Vercel: `process.cwd()` there is often
  * the monorepo root, not `dashboard-web`, so `fs.readFileSync("pipelines.json")` was missing the file.
  */
 export function readPipelines(): PipelineConfig[] {
-  return Object.values(pipelinesRaw as PipelinesMap);
+  const list = Object.values(pipelinesRaw as PipelinesMap);
+  return list.sort((a, b) => {
+    const oa = PIPELINE_ORDER[a.pipeline_name] ?? 100;
+    const ob = PIPELINE_ORDER[b.pipeline_name] ?? 100;
+    if (oa !== ob) return oa - ob;
+    return a.pipeline_name.localeCompare(b.pipeline_name);
+  });
 }
 

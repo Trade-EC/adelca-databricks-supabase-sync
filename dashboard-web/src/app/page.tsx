@@ -22,6 +22,8 @@ type PipelineRow = {
   write_mode: "insert_only" | "upsert";
   conflict_key: string;
   schedule: string;
+  databricks_profile?: "prd" | "qas";
+  supabase_profile?: "default" | "secondary";
   source_count: number;
   dest_count: number | null;
   pending: number | null;
@@ -135,7 +137,7 @@ export default function Home() {
           <h1 className="text-2xl font-bold">Databricks → Supabase Pipelines</h1>
           <p className="mt-1 text-sm text-zinc-400">
             Updated: {data?.timestamp ?? "loading..."} | Lambda: {data?.lambda?.name ?? "-"} (
-            {data?.lambda?.runtime ?? "-"})
+            {data?.lambda?.runtime ?? "-"}) | Pipelines: {data?.pipelines?.length ?? "—"}
           </p>
           {data?.aws_error ? (
             <p className="mt-2 text-xs text-amber-300">
@@ -153,6 +155,7 @@ export default function Home() {
               <thead>
                 <tr className="text-left text-zinc-400 border-b border-zinc-700">
                   <th className="py-2 pr-4">Pipeline</th>
+                  <th className="py-2 pr-4">Entorno</th>
                   <th className="py-2 pr-4">Mode</th>
                   <th className="py-2 pr-4">Source</th>
                   <th className="py-2 pr-4">Target</th>
@@ -167,6 +170,19 @@ export default function Home() {
                 {data?.pipelines?.map((p) => (
                   <tr key={p.pipeline_name} className="border-b border-zinc-800 align-top">
                     <td className="py-3 pr-4 font-medium">{p.pipeline_name}</td>
+                    <td className="py-3 pr-4 text-xs text-zinc-300">
+                      <div className="flex flex-wrap gap-1">
+                        <span className="rounded bg-zinc-800 px-2 py-0.5 text-zinc-300">
+                          DBX {p.databricks_profile ?? "—"}
+                        </span>
+                        <span className="rounded bg-slate-800 px-2 py-0.5 text-slate-200">
+                          SB {p.supabase_profile ?? "default"}
+                        </span>
+                        <span className="rounded bg-zinc-800/80 px-2 py-0.5 text-zinc-400" title="Schedule en config">
+                          {p.schedule === "manual" ? "manual" : "cron"}
+                        </span>
+                      </div>
+                    </td>
                     <td className="py-3 pr-4">{p.write_mode}</td>
                     <td className="py-3 pr-4 text-zinc-300">{p.source_table}</td>
                     <td className="py-3 pr-4 text-zinc-300">{p.target_table}</td>
