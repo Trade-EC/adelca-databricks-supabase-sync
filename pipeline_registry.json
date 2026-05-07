@@ -18,6 +18,10 @@
     "socio_adelca_grupos": {
       "invoke": { "pipeline_name": "socio_adelca_grupos" },
       "notes": "dim_grupos_ferreteros_mtz → hardware_store_groups (secondary); id = uuid5(id_grupo)"
+    },
+    "socio_adelca_materiales": {
+      "invoke": { "pipeline_name": "socio_adelca_materiales" },
+      "notes": "dim_materiales_rebates_slv → sa_materials (secondary); id = uuid5(codigo_material); full upsert"
     }
   }
 }

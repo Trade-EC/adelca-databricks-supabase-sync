@@ -91,3 +91,11 @@ Grupos ferreteros → `hardware_store_groups` (secondary):
   "pipeline_name": "socio_adelca_grupos"
 }
 ```
+
+Materiales → `sa_materials` (secondary):
+
+```json
+{
+  "pipeline_name": "socio_adelca_materiales"
+}
+```

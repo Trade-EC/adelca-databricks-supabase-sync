@@ -11,11 +11,26 @@
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
-      { "source": "codigo_transportista", "target": "codigo_transportista" },
-      { "source": "ruc", "target": "ruc" },
-      { "source": "nombre_transportista", "target": "nombre_transportista" },
-      { "source": "telefono", "target": "telefono" },
-      { "source": "email", "target": "email" }
+      {
+        "source": "codigo_transportista",
+        "target": "codigo_transportista"
+      },
+      {
+        "source": "ruc",
+        "target": "ruc"
+      },
+      {
+        "source": "nombre_transportista",
+        "target": "nombre_transportista"
+      },
+      {
+        "source": "telefono",
+        "target": "telefono"
+      },
+      {
+        "source": "email",
+        "target": "email"
+      }
     ],
     "defaults": {
       "estado_transportista": "pendiente"
@@ -34,17 +49,36 @@
     "target_table": "vehicles",
     "write_mode": "insert_only",
     "conflict_key": "license_plate",
-    "require_non_null": ["placa"],
+    "require_non_null": [
+      "placa"
+    ],
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
-      { "source": "placa", "target": "license_plate" },
-      { "source": "tipo_trasporte", "target": "type" },
-      { "source": "capacidad_ton", "target": "weight_average_capacity" },
-      { "source": "codigo_transportista", "target": "fleet_owner_unique_code" },
-      { "source": "flg_rutero", "target": "is_route_based" }
+      {
+        "source": "placa",
+        "target": "license_plate"
+      },
+      {
+        "source": "tipo_trasporte",
+        "target": "type"
+      },
+      {
+        "source": "capacidad_ton",
+        "target": "weight_average_capacity"
+      },
+      {
+        "source": "codigo_transportista",
+        "target": "fleet_owner_unique_code"
+      },
+      {
+        "source": "flg_rutero",
+        "target": "is_route_based"
+      }
     ],
-    "boolean_fields": ["is_route_based"],
+    "boolean_fields": [
+      "is_route_based"
+    ],
     "defaults": {},
     "null_coalesce": {
       "weight_average_capacity": 0,
@@ -70,17 +104,40 @@
     "target_table": "ct_freights",
     "write_mode": "insert_only",
     "conflict_key": "id",
-    "require_non_null": ["codigo_viaje"],
+    "require_non_null": [
+      "codigo_viaje"
+    ],
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
-      { "source": "codigo_viaje", "target": "freight_code" },
-      { "source": "fecha", "target": "assignment_date" },
-      { "source": "codigo_unico_transportista", "target": "fleet_owner_unique_code" },
-      { "source": "distancia_km", "target": "distance" },
-      { "source": "placa", "target": "license_plate" },
-      { "source": "peso_ton", "target": "weight" },
-      { "source": "valor_neto", "target": "net_pay" }
+      {
+        "source": "codigo_viaje",
+        "target": "freight_code"
+      },
+      {
+        "source": "fecha",
+        "target": "assignment_date"
+      },
+      {
+        "source": "codigo_unico_transportista",
+        "target": "fleet_owner_unique_code"
+      },
+      {
+        "source": "distancia_km",
+        "target": "distance"
+      },
+      {
+        "source": "placa",
+        "target": "license_plate"
+      },
+      {
+        "source": "peso_ton",
+        "target": "weight"
+      },
+      {
+        "source": "valor_neto",
+        "target": "net_pay"
+      }
     ],
     "id_strategy": {
       "type": "uuid5_from_source",
@@ -102,26 +159,75 @@
     "write_mode": "upsert",
     "conflict_key": "id",
     "skip_source_deduplicate": true,
-    "require_non_null": ["codigo_cliente", "ruc"],
+    "require_non_null": [
+      "codigo_cliente",
+      "ruc"
+    ],
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
-      { "source": "ruc", "target": "tax_id" },
-      { "source": "codigo_cliente", "target": "customer_code" },
-      { "source": "nombre_cliente", "target": "name" },
-      { "source": "id_grupo", "target": "group_name" },
-      { "source": "es_ferretero", "target": "is_hardware_store" },
-      { "source": "es_cadena_ferretera", "target": "is_hardware_chain" },
-      { "source": "tiene_grupo", "target": "has_group" },
-      { "source": "ciudad", "target": "city" },
-      { "source": "provincia", "target": "province" },
-      { "source": "telefono", "target": "phone" },
-      { "source": "correo", "target": "email" },
-      { "source": "asesor_comercial_nombre", "target": "sales_rep_name" },
-      { "source": "asesor_comercial_email", "target": "sales_rep_email" },
-      { "source": "celular_asesor_comercial", "target": "sales_rep_phone" }
+      {
+        "source": "ruc",
+        "target": "tax_id"
+      },
+      {
+        "source": "codigo_cliente",
+        "target": "customer_code"
+      },
+      {
+        "source": "nombre_cliente",
+        "target": "name"
+      },
+      {
+        "source": "id_grupo",
+        "target": "group_name"
+      },
+      {
+        "source": "es_ferretero",
+        "target": "is_hardware_store"
+      },
+      {
+        "source": "es_cadena_ferretera",
+        "target": "is_hardware_chain"
+      },
+      {
+        "source": "tiene_grupo",
+        "target": "has_group"
+      },
+      {
+        "source": "ciudad",
+        "target": "city"
+      },
+      {
+        "source": "provincia",
+        "target": "province"
+      },
+      {
+        "source": "telefono",
+        "target": "phone"
+      },
+      {
+        "source": "correo",
+        "target": "email"
+      },
+      {
+        "source": "asesor_comercial_nombre",
+        "target": "sales_rep_name"
+      },
+      {
+        "source": "asesor_comercial_email",
+        "target": "sales_rep_email"
+      },
+      {
+        "source": "celular_asesor_comercial",
+        "target": "sales_rep_phone"
+      }
     ],
-    "boolean_fields": ["is_hardware_store", "is_hardware_chain", "has_group"],
+    "boolean_fields": [
+      "is_hardware_store",
+      "is_hardware_chain",
+      "has_group"
+    ],
     "id_strategy": {
       "type": "uuid5_from_source",
       "column": "id",
@@ -153,16 +259,36 @@
     "target_table": "hardware_store_groups",
     "write_mode": "upsert",
     "conflict_key": "id",
-    "require_non_null": ["id_grupo"],
+    "require_non_null": [
+      "id_grupo"
+    ],
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
-      { "source": "id_grupo", "target": "group_name" },
-      { "source": "ciudad", "target": "city" },
-      { "source": "codigo_asesor_comercial", "target": "sales_rep_code" },
-      { "source": "asesor_comercial_nombre", "target": "sales_rep_name" },
-      { "source": "asesor_comercial_email", "target": "sales_rep_email" },
-      { "source": "celular_asesor_comercial", "target": "sales_rep_phone" }
+      {
+        "source": "id_grupo",
+        "target": "group_name"
+      },
+      {
+        "source": "ciudad",
+        "target": "city"
+      },
+      {
+        "source": "codigo_asesor_comercial",
+        "target": "sales_rep_code"
+      },
+      {
+        "source": "asesor_comercial_nombre",
+        "target": "sales_rep_name"
+      },
+      {
+        "source": "asesor_comercial_email",
+        "target": "sales_rep_email"
+      },
+      {
+        "source": "celular_asesor_comercial",
+        "target": "sales_rep_phone"
+      }
     ],
     "id_strategy": {
       "type": "uuid5_from_source",
@@ -177,6 +303,44 @@
       "sales_rep_name": "",
       "sales_rep_email": "",
       "sales_rep_phone": ""
+    },
+    "include_ingested_at": true,
+    "sync_timestamp_column": "synced_at",
+    "datamart_timestamp_column": "synced_at"
+  },
+  "socio_adelca_materiales": {
+    "pipeline_name": "socio_adelca_materiales",
+    "databricks_profile": "qas",
+    "supabase_profile": "secondary",
+    "row_mode": "generic",
+    "source_table": "qas.aplicaciones.dim_materiales_rebates_slv",
+    "target_table": "sa_materials",
+    "write_mode": "upsert",
+    "conflict_key": "id",
+    "require_non_null": [
+      "codigo_material"
+    ],
+    "batch_size": 500,
+    "schedule": "cron(0 5 * * ? *)",
+    "column_mapping": [
+      {
+        "source": "codigo_material",
+        "target": "code"
+      },
+      {
+        "source": "descripcion_material",
+        "target": "description"
+      },
+      {
+        "source": "categoria_rebate",
+        "target": "cashback_category"
+      }
+    ],
+    "id_strategy": {
+      "type": "uuid5_from_source",
+      "column": "id",
+      "source_column": "codigo_material",
+      "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
     },
     "include_ingested_at": true,
     "sync_timestamp_column": "synced_at",

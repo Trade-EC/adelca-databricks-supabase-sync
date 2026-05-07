@@ -147,6 +147,13 @@ Resources:
             Description: Grupos ferreteros (dim_grupos_ferreteros_mtz → hardware_store_groups)
             Enabled: true
             Input: '{"pipeline_name":"socio_adelca_grupos"}'
+        ScheduledMaterialesSync:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Materiales (dim_materiales_rebates_slv → sa_materials)
+            Enabled: true
+            Input: '{"pipeline_name":"socio_adelca_materiales"}'
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:

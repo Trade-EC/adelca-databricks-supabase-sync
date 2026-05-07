@@ -84,3 +84,7 @@ CREATE INDEX IF NOT EXISTS idx_etl_runs_pipeline_created_at
 -- Pipeline socio_adelca_grupos: QAS qas.aplicaciones.dim_grupos_ferreteros_mtz → public.hardware_store_groups (secondary).
 -- Columnas típicas en destino: id, group_name, city, sales_rep_code, sales_rep_name, sales_rep_email, sales_rep_phone, synced_at
 -- id = uuid5(id_grupo). No mapeados desde MTZ: total_ferreterias_asociadas, total_con_flag_ferretero, total_con_flag_cadena, fecha_corte, regla_version.
+
+-- Pipeline socio_adelca_materiales: QAS qas.aplicaciones.dim_materiales_rebates_slv → public.sa_materials (secondary).
+-- Carga full por bajo volumen (upsert) con id = uuid5(codigo_material), synced_at incluido.
+-- Mapping actual: codigo_material→code, descripcion_material→description, categoria_rebate→cashback_category.

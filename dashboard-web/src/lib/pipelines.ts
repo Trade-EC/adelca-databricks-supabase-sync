@@ -26,6 +26,7 @@ const PIPELINE_ORDER: Record<string, number> = {
   viajes: 2,
   socio_adelca_ferreterias: 3,
   socio_adelca_grupos: 4,
+  socio_adelca_materiales: 5,
 };
 
 /**
