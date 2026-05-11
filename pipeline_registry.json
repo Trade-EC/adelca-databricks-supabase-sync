@@ -13,15 +13,19 @@
     },
     "socio_adelca_ferreterias": {
       "invoke": { "pipeline_name": "socio_adelca_ferreterias" },
-      "notes": "dim_ferreterias_mtz → hardware_stores (secondary); id = uuid5(codigo_cliente); skip_source_deduplicate"
+      "notes": "dim_ferreterias_mtz → sa_hardware_stores (secondary); id = uuid5(codigo_cliente); store_group_id = uuid5(id_grupo); dedupe_records_by tax_id (UNIQUE tax_id; last wins; claves normalizan ceros a la izquierda)"
     },
     "socio_adelca_grupos": {
       "invoke": { "pipeline_name": "socio_adelca_grupos" },
-      "notes": "dim_grupos_ferreteros_mtz → hardware_store_groups (secondary); id = uuid5(id_grupo)"
+      "notes": "dim_grupos_ferreteros_mtz → sa_hardware_store_groups; addresses[{ciudad}]; data_representative{code,name,phone,email} desde MTZ"
     },
     "socio_adelca_materiales": {
       "invoke": { "pipeline_name": "socio_adelca_materiales" },
       "notes": "dim_materiales_rebates_slv → sa_materials (secondary); id = uuid5(codigo_material); full upsert"
+    },
+    "socio_adelca_facturas_rebate": {
+      "invoke": { "pipeline_name": "socio_adelca_facturas_rebate" },
+      "notes": "fact_invoices_sa → sa_invoices (secondary); quitar require_non_null_targets store_group_id y null_coalesce store_tax_id cuando OpenAPI ya no marque required; uuid5(sap_id_grupo); alignBatchObjectKeys"
     }
   }
 }

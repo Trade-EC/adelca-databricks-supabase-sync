@@ -75,16 +75,27 @@ CREATE INDEX IF NOT EXISTS idx_etl_runs_pipeline_created_at
 -- The live `vehicles` table is app-defined; typical columns: id, license_plate, type, model,
 -- weight_average_capacity, weight_average_capacity_unit, fleet_owner_unique_code, is_route_based, synced_at.
 
--- Pipeline socio_adelca_ferreterias: QAS qas.aplicaciones.dim_ferreterias_mtz → public.hardware_stores (secondary).
--- La app define la tabla; ejemplo de columnas alineadas al ETL (PostgREST):
---   id, tax_id, customer_code, name, group_name, is_hardware_store, is_hardware_chain, has_group,
---   city, province, phone, email, sales_rep_name, sales_rep_email, sales_rep_phone, synced_at
--- uuidv5(ruc) → id; write_mode upsert; campos MTZ no mapeados: codigo_asesor_comercial, fecha_corte, regla_version.
+-- Pipeline socio_adelca_ferreterias: QAS qas.aplicaciones.dim_ferreterias_mtz → public.sa_hardware_stores (secondary).
+-- Destino típico (OpenAPI): id, store_group_id, name, tax_id, created_at, updated_at, deleted_at.
+-- ETL: id = uuid5(codigo_cliente); store_group_id = uuid5(id_grupo) (mismo namespace que socio_adelca_grupos);
+-- ruc→tax_id, nombre_cliente→name; fill_missing_iso_timestamps en created_at/updated_at. No mapeados: ciudad, teléfono, asesor, flags, etc.
 
--- Pipeline socio_adelca_grupos: QAS qas.aplicaciones.dim_grupos_ferreteros_mtz → public.hardware_store_groups (secondary).
--- Columnas típicas en destino: id, group_name, city, sales_rep_code, sales_rep_name, sales_rep_email, sales_rep_phone, synced_at
--- id = uuid5(id_grupo). No mapeados desde MTZ: total_ferreterias_asociadas, total_con_flag_ferretero, total_con_flag_cadena, fecha_corte, regla_version.
+-- Pipeline socio_adelca_grupos: QAS qas.aplicaciones.dim_grupos_ferreteros_mtz → public.sa_hardware_store_groups (secondary).
+-- Destino típico: id, name, addresses (jsonb), data_representative (jsonb), member_since, created_at, updated_at. ETL: id = uuid5(id_grupo);
+-- nombre_grupo→name; fecha_corte→member_since; addresses[0] = { ciudad }; data_representative = { code, name, phone, email } desde columnas MTZ del asesor.
+-- Ejecutar en el **mismo** proyecto Supabase donde está `sa_hardware_store_groups` (secondary). Luego: Settings → API → Reload schema.
+ALTER TABLE IF EXISTS public.sa_hardware_store_groups
+  ADD COLUMN IF NOT EXISTS data_representative jsonb;
 
 -- Pipeline socio_adelca_materiales: QAS qas.aplicaciones.dim_materiales_rebates_slv → public.sa_materials (secondary).
 -- Carga full por bajo volumen (upsert) con id = uuid5(codigo_material), synced_at incluido.
 -- Mapping actual: codigo_material→code, descripcion_material→description, categoria_rebate→cashback_category.
+
+-- Pipeline socio_adelca_facturas_rebate: QAS qas.aplicaciones.fact_invoices_sa → public.sa_invoices (secondary).
+-- El destino en secondary es el modelo de cabecera de factura (alineado con el origen): invoice_number, lines jsonb,
+-- materials_* jsonb, issued_date, montos, store_group_id / store_tax_id, timestamps, etc. Ver OpenAPI GET /rest/v1/.
+-- Lambda: json_parse_targets para columnas jsonb enviadas como string desde Databricks; fill_missing_iso_timestamps
+-- solo created_at si viene vacío; updated_at no se envía desde Databricks (default/trigger en Supabase).
+-- include_ingested_at=false (no hay synced_at en esta tabla).
+-- Tras ALTER nullable en sa_invoices: Settings → API → Reload schema en Supabase; luego relajar pipelines.json (sin require store_group_id ni coalesce tax).
+-- store_tax_id: quitar null_coalesce en pipelines cuando en Supabase sea nullable y PostgREST vea el cambio.

@@ -137,14 +137,14 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Ferreterias Adelca (dim_ferreterias_mtz → hardware_stores)
+            Description: Ferreterias Adelca (dim_ferreterias_mtz → sa_hardware_stores)
             Enabled: true
             Input: '{"pipeline_name":"socio_adelca_ferreterias"}'
         ScheduledGruposFerreterosSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Grupos ferreteros (dim_grupos_ferreteros_mtz → hardware_store_groups)
+            Description: Grupos ferreteros (dim_grupos_ferreteros_mtz → sa_hardware_store_groups)
             Enabled: true
             Input: '{"pipeline_name":"socio_adelca_grupos"}'
         ScheduledMaterialesSync:
@@ -154,6 +154,13 @@ Resources:
             Description: Materiales (dim_materiales_rebates_slv → sa_materials)
             Enabled: true
             Input: '{"pipeline_name":"socio_adelca_materiales"}'
+        ScheduledFacturasRebateSync:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Facturas SA (fact_invoices_sa → sa_invoices)
+            Enabled: true
+            Input: '{"pipeline_name":"socio_adelca_facturas_rebate"}'
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:

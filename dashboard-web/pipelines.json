@@ -155,78 +155,26 @@
     "supabase_profile": "secondary",
     "row_mode": "generic",
     "source_table": "qas.aplicaciones.dim_ferreterias_mtz",
-    "target_table": "hardware_stores",
+    "target_table": "sa_hardware_stores",
     "write_mode": "upsert",
     "conflict_key": "id",
     "skip_source_deduplicate": true,
-    "require_non_null": [
-      "codigo_cliente",
-      "ruc"
+    "dedupe_records_by": "tax_id",
+    "require_non_null": ["codigo_cliente", "ruc", "id_grupo"],
+    "extra_source_columns": ["codigo_cliente", "id_grupo"],
+    "derived_uuid5": [
+      {
+        "source_column": "id_grupo",
+        "target_column": "store_group_id",
+        "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
+      }
     ],
+    "fill_missing_iso_timestamps": ["created_at", "updated_at"],
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
-      {
-        "source": "ruc",
-        "target": "tax_id"
-      },
-      {
-        "source": "codigo_cliente",
-        "target": "customer_code"
-      },
-      {
-        "source": "nombre_cliente",
-        "target": "name"
-      },
-      {
-        "source": "id_grupo",
-        "target": "group_name"
-      },
-      {
-        "source": "es_ferretero",
-        "target": "is_hardware_store"
-      },
-      {
-        "source": "es_cadena_ferretera",
-        "target": "is_hardware_chain"
-      },
-      {
-        "source": "tiene_grupo",
-        "target": "has_group"
-      },
-      {
-        "source": "ciudad",
-        "target": "city"
-      },
-      {
-        "source": "provincia",
-        "target": "province"
-      },
-      {
-        "source": "telefono",
-        "target": "phone"
-      },
-      {
-        "source": "correo",
-        "target": "email"
-      },
-      {
-        "source": "asesor_comercial_nombre",
-        "target": "sales_rep_name"
-      },
-      {
-        "source": "asesor_comercial_email",
-        "target": "sales_rep_email"
-      },
-      {
-        "source": "celular_asesor_comercial",
-        "target": "sales_rep_phone"
-      }
-    ],
-    "boolean_fields": [
-      "is_hardware_store",
-      "is_hardware_chain",
-      "has_group"
+      { "source": "ruc", "target": "tax_id" },
+      { "source": "nombre_cliente", "target": "name" }
     ],
     "id_strategy": {
       "type": "uuid5_from_source",
@@ -235,20 +183,11 @@
       "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
     },
     "null_coalesce": {
-      "phone": "",
-      "email": "",
-      "customer_code": "",
       "name": "",
-      "group_name": "",
-      "city": "",
-      "province": "",
-      "sales_rep_name": "",
-      "sales_rep_email": "",
-      "sales_rep_phone": ""
+      "tax_id": ""
     },
-    "include_ingested_at": true,
-    "sync_timestamp_column": "synced_at",
-    "datamart_timestamp_column": "synced_at"
+    "include_ingested_at": false,
+    "datamart_timestamp_column": "updated_at"
   },
   "socio_adelca_grupos": {
     "pipeline_name": "socio_adelca_grupos",
@@ -256,38 +195,34 @@
     "supabase_profile": "secondary",
     "row_mode": "generic",
     "source_table": "qas.aplicaciones.dim_grupos_ferreteros_mtz",
-    "target_table": "hardware_store_groups",
+    "target_table": "sa_hardware_store_groups",
     "write_mode": "upsert",
     "conflict_key": "id",
-    "require_non_null": [
-      "id_grupo"
-    ],
+    "skip_source_deduplicate": true,
+    "require_non_null": ["id_grupo", "nombre_grupo"],
+    "extra_source_columns": ["id_grupo"],
+    "fill_missing_iso_timestamps": ["created_at", "updated_at"],
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
+      { "source": "nombre_grupo", "target": "name" },
+      { "source": "fecha_corte", "target": "member_since" }
+    ],
+    "build_jsonb_targets": [
       {
-        "source": "id_grupo",
-        "target": "group_name"
+        "target": "addresses",
+        "wrap_in_array": true,
+        "properties": [{ "key": "ciudad", "source_column": "ciudad" }]
       },
       {
-        "source": "ciudad",
-        "target": "city"
-      },
-      {
-        "source": "codigo_asesor_comercial",
-        "target": "sales_rep_code"
-      },
-      {
-        "source": "asesor_comercial_nombre",
-        "target": "sales_rep_name"
-      },
-      {
-        "source": "asesor_comercial_email",
-        "target": "sales_rep_email"
-      },
-      {
-        "source": "celular_asesor_comercial",
-        "target": "sales_rep_phone"
+        "target": "data_representative",
+        "wrap_in_array": false,
+        "root_object_from_columns": {
+          "code": "codigo_asesor_comercial",
+          "name": "asesor_comercial_nombre",
+          "phone": "celular_asesor_comercial",
+          "email": "asesor_comercial_email"
+        }
       }
     ],
     "id_strategy": {
@@ -297,16 +232,10 @@
       "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
     },
     "null_coalesce": {
-      "group_name": "",
-      "city": "",
-      "sales_rep_code": "",
-      "sales_rep_name": "",
-      "sales_rep_email": "",
-      "sales_rep_phone": ""
+      "name": ""
     },
-    "include_ingested_at": true,
-    "sync_timestamp_column": "synced_at",
-    "datamart_timestamp_column": "synced_at"
+    "include_ingested_at": false,
+    "datamart_timestamp_column": "updated_at"
   },
   "socio_adelca_materiales": {
     "pipeline_name": "socio_adelca_materiales",
@@ -345,5 +274,68 @@
     "include_ingested_at": true,
     "sync_timestamp_column": "synced_at",
     "datamart_timestamp_column": "synced_at"
+  },
+  "socio_adelca_facturas_rebate": {
+    "pipeline_name": "socio_adelca_facturas_rebate",
+    "databricks_profile": "qas",
+    "supabase_profile": "secondary",
+    "row_mode": "generic",
+    "source_table": "qas.aplicaciones.fact_invoices_sa",
+    "target_table": "sa_invoices",
+    "write_mode": "upsert",
+    "conflict_key": "id",
+    "skip_source_deduplicate": true,
+    "require_non_null": ["id", "invoice_number"],
+    "require_non_null_targets": ["id", "invoice_number", "store_group_id"],
+    "extra_source_columns": ["sap_id_grupo"],
+    "derived_uuid5": [
+      {
+        "source_column": "sap_id_grupo",
+        "target_column": "store_group_id",
+        "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
+      }
+    ],
+    "batch_size": 500,
+    "schedule": "cron(0 5 * * ? *)",
+    "column_mapping": [
+      { "source": "id", "target": "id" },
+      { "source": "invoice_number", "target": "invoice_number" },
+      { "source": "lines", "target": "lines" },
+      { "source": "materials_weight_totals", "target": "materials_weight_totals" },
+      { "source": "materials_categories_weight_totals", "target": "materials_categories_weight_totals" },
+      { "source": "issued_date", "target": "issued_date" },
+      { "source": "subtotal", "target": "subtotal" },
+      { "source": "taxes", "target": "taxes" },
+      { "source": "discounts", "target": "discounts" },
+      { "source": "total_amount", "target": "total_amount" },
+      { "source": "currency", "target": "currency" },
+      { "source": "status", "target": "status" },
+      { "source": "reference", "target": "reference" },
+      { "source": "created_at", "target": "created_at" },
+      { "source": "deleted_at", "target": "deleted_at" },
+      { "source": "store_group_id", "target": "store_group_id" },
+      { "source": "store_tax_id", "target": "store_tax_id" },
+      { "source": "processed_at", "target": "processed_at" }
+    ],
+    "json_parse_targets": ["lines", "materials_weight_totals", "materials_categories_weight_totals"],
+    "fill_missing_iso_timestamps": ["created_at"],
+    "defaults": {
+      "status": "ACTIVE"
+    },
+    "null_coalesce": {
+      "lines": [],
+      "materials_weight_totals": [],
+      "materials_categories_weight_totals": [],
+      "subtotal": 0,
+      "taxes": 0,
+      "discounts": 0,
+      "total_amount": 0,
+      "currency": "",
+      "status": "ACTIVE",
+      "reference": "",
+      "store_tax_id": "1391786735001"
+    },
+    "include_ingested_at": false,
+    "datamart_timestamp_column": "updated_at"
   }
 }

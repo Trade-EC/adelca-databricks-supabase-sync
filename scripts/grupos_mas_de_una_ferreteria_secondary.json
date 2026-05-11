@@ -1,0 +1,642 @@
+{
+  "supabase_project": "secondary",
+  "total_grupos_con_mas_de_una_ferreteria": 127,
+  "orden": "ferreterias desc, luego id",
+  "grupos": [
+    {
+      "ferreterias": 7,
+      "id": "e9c6afda-d20c-5e13-ab6a-7b179ae33a3e",
+      "name": "GRUPO AFEMAUSTRO"
+    },
+    {
+      "ferreterias": 6,
+      "id": "0ac8e35f-d6e2-5a3d-bb0b-a77bb25d8c8b",
+      "name": "GRUPO TOAPANTA"
+    },
+    {
+      "ferreterias": 6,
+      "id": "a10edcff-47bb-5037-ae9e-0472e1876e2b",
+      "name": "GRUPO HERNANDEZ"
+    },
+    {
+      "ferreterias": 5,
+      "id": "4075ac65-09dd-5de8-ab7c-762242bc513f",
+      "name": "GRUPO AVILA"
+    },
+    {
+      "ferreterias": 5,
+      "id": "473c6569-6fa2-5d31-bf7d-48f633f91a20",
+      "name": "GRUPO ZAMBRANO"
+    },
+    {
+      "ferreterias": 5,
+      "id": "5cc7773a-5131-55c7-b937-94794d842da2",
+      "name": "GRUPO SALAZAR"
+    },
+    {
+      "ferreterias": 5,
+      "id": "71e3c6e8-ce90-5c9b-9811-00b655a477bf",
+      "name": "GRUPO DUTAN"
+    },
+    {
+      "ferreterias": 5,
+      "id": "bd3870fd-1ca5-56e0-93ab-17f2ee0b5e02",
+      "name": "GRUPO MAURAT"
+    },
+    {
+      "ferreterias": 5,
+      "id": "c7f3b1f0-2434-53f1-9996-bb3a3e4bc5a1",
+      "name": "GRUPO PROMACONS"
+    },
+    {
+      "ferreterias": 5,
+      "id": "db96c7a2-959c-5bc5-8322-a96b39704226",
+      "name": "GRUPO ANDRADE MANABI"
+    },
+    {
+      "ferreterias": 4,
+      "id": "0051ed95-a1d0-58c4-bb35-f331d97f4b7e",
+      "name": "Grupo Jacome Consvicsacorp S A "
+    },
+    {
+      "ferreterias": 4,
+      "id": "4f13eb96-d2a9-5c5d-a294-703e699c9560",
+      "name": "GRUPO PERUGACHI"
+    },
+    {
+      "ferreterias": 4,
+      "id": "774be924-f3b4-5f19-94ff-3dd89e5ddd66",
+      "name": "GRUPO PALACIOS"
+    },
+    {
+      "ferreterias": 4,
+      "id": "7971193b-2a97-5df0-8d25-0aabb308840c",
+      "name": "GRUPO ARTEAGA BEJARANO"
+    },
+    {
+      "ferreterias": 4,
+      "id": "8003bfd7-33bb-5d65-b867-8a16e75df751",
+      "name": "GRUPO BRAVO GYE"
+    },
+    {
+      "ferreterias": 4,
+      "id": "adc81580-98d9-53b2-8fd8-730f2205454b",
+      "name": "GRUPO VITERI"
+    },
+    {
+      "ferreterias": 4,
+      "id": "c0bb9399-7e96-54c2-b5be-fa078c7405ec",
+      "name": "GRUPO GONZALEZ"
+    },
+    {
+      "ferreterias": 4,
+      "id": "c1f9c5d1-794f-53c7-b548-64f5589c2088",
+      "name": "GRUPO TOAQUIZA"
+    },
+    {
+      "ferreterias": 4,
+      "id": "c76ee3d7-c3b6-5c4f-a0dd-a2148c2fbd5c",
+      "name": "Constructora Beltran Oviedo Beltrovi C A"
+    },
+    {
+      "ferreterias": 4,
+      "id": "dc97a2bf-8e7a-5c9f-ae0f-e5e12f40524d",
+      "name": "GRUPO JUCA"
+    },
+    {
+      "ferreterias": 3,
+      "id": "007bdd7e-296d-5ec0-90c2-27e1c06eef4a",
+      "name": "GRUPO MATUTE"
+    },
+    {
+      "ferreterias": 3,
+      "id": "0eef68bb-b33d-5be6-bdb5-e6eab6af13ae",
+      "name": "GRUPO ANDRADE LOS RIOS"
+    },
+    {
+      "ferreterias": 3,
+      "id": "184f1654-4659-54a3-8d45-ebd95108bd30",
+      "name": "GRUPO ILLINGWORTH"
+    },
+    {
+      "ferreterias": 3,
+      "id": "1d4d319e-0bfc-526f-8b1d-cc8d114762aa",
+      "name": "GRUPO OCHOA AVILA"
+    },
+    {
+      "ferreterias": 3,
+      "id": "27594548-6b94-50ca-90e4-cbea2cb93fe7",
+      "name": "GRUPO HORMICORP"
+    },
+    {
+      "ferreterias": 3,
+      "id": "3edba563-72f0-536c-bc99-14fecfdf6d04",
+      "name": "GRUPO ALEJANDRO"
+    },
+    {
+      "ferreterias": 3,
+      "id": "4469e44d-2685-557e-959b-9a25565a53e2",
+      "name": "GRUPO BRUCKMAN"
+    },
+    {
+      "ferreterias": 3,
+      "id": "4c92cf95-6b7e-54e1-9b68-ff6a69f8b922",
+      "name": "GRUPO LUIS RIVERA"
+    },
+    {
+      "ferreterias": 3,
+      "id": "4ef3f1fe-143f-5d58-8754-0cc25bbd9be5",
+      "name": "GRUPO ZARATE UIO"
+    },
+    {
+      "ferreterias": 3,
+      "id": "517cf034-f18f-5fd2-bad9-14a421eff5b4",
+      "name": "GRUPO POZO"
+    },
+    {
+      "ferreterias": 3,
+      "id": "54038d96-d92e-5636-bbec-7db4b31f3be9",
+      "name": "GRUPO AYALA"
+    },
+    {
+      "ferreterias": 3,
+      "id": "5d99cb4e-7bb8-5e07-99d2-cfb13f81de65",
+      "name": "GRUPO QUINTANA"
+    },
+    {
+      "ferreterias": 3,
+      "id": "6b4a435a-924b-5bf1-b446-048b51219c93",
+      "name": "GRUPO CARPIO"
+    },
+    {
+      "ferreterias": 3,
+      "id": "6bbae768-b46a-5f64-929c-beee7b2a2571",
+      "name": "GRUPO FERRISARIATO"
+    },
+    {
+      "ferreterias": 3,
+      "id": "6bc67790-3407-5da0-859b-47a1eaec2b23",
+      "name": "GRUPO LINO TUMBACO"
+    },
+    {
+      "ferreterias": 3,
+      "id": "845643b9-54ea-532f-8eb7-a8efe63aa53b",
+      "name": "GRUPO FREIRE"
+    },
+    {
+      "ferreterias": 3,
+      "id": "88a8490d-67e1-5f4a-844a-ba66a569b7a1",
+      "name": "GRUPO MEJIA PLACES"
+    },
+    {
+      "ferreterias": 3,
+      "id": "88f3f51e-cf09-55a4-85cb-ffe3788fdcbc",
+      "name": "TUVAL"
+    },
+    {
+      "ferreterias": 3,
+      "id": "a45f594d-9d37-56bf-801d-b68f930cc469",
+      "name": "Grupo Franquiciado Becerra Distribuidorpas S A S"
+    },
+    {
+      "ferreterias": 3,
+      "id": "a5d4b72e-a144-5e5b-986b-8635acbe582d",
+      "name": "GRUPO GALABUSINESS"
+    },
+    {
+      "ferreterias": 3,
+      "id": "a91c3276-946f-5557-a9d1-5092626c6a77",
+      "name": "GRUPO MAXIMETALES"
+    },
+    {
+      "ferreterias": 3,
+      "id": "c810dcb8-9167-5395-99a0-2a99b7c01eb2",
+      "name": "GRUPO TRUJILLO"
+    },
+    {
+      "ferreterias": 3,
+      "id": "c8da3b06-8ceb-5225-9210-40d94dc9e880",
+      "name": "GRUPO FERROCOMERCIAL"
+    },
+    {
+      "ferreterias": 3,
+      "id": "d4bca617-dd87-59dd-a3be-09a54efa9e9d",
+      "name": "GRUPO MEJIA"
+    },
+    {
+      "ferreterias": 3,
+      "id": "db9bed5a-284d-57bd-8ccf-6c4766ba3b08",
+      "name": "Guillermo Lude A Navarrete"
+    },
+    {
+      "ferreterias": 2,
+      "id": "073655f3-787c-5273-b2ca-5e7a48fb1ea6",
+      "name": "GRUPO VALAREZO TORO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "0751ffe1-8269-5f8b-97ee-76f310b29b89",
+      "name": "GRUPO CAICEDO ESCOBAR FREDDY"
+    },
+    {
+      "ferreterias": 2,
+      "id": "09b66413-d013-5f25-8af1-3f4823914e72",
+      "name": "Construmercado Meganoa S A "
+    },
+    {
+      "ferreterias": 2,
+      "id": "0bcc5b5d-2266-5804-b926-14e120d5ed26",
+      "name": "GRUPO CORRALES"
+    },
+    {
+      "ferreterias": 2,
+      "id": "1a841130-8a22-558a-beb9-ce63306b1e8a",
+      "name": "GRUPO HERAS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "1ff2045c-6085-5f01-92bf-04e2f86a2e74",
+      "name": "GRUPO LLAGUNO ZAMBRANO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "207e3222-a769-5185-a38a-2cf867c608f2",
+      "name": "GRUPO CORDOVA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "2246d078-3b0c-5129-9dfd-7ec0f556995a",
+      "name": "Grupo Castro Carre O"
+    },
+    {
+      "ferreterias": 2,
+      "id": "23d1d5fc-25bc-56bf-bc07-6635f7910095",
+      "name": "GRUPO CHANALATA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "25b8afce-eab5-5e02-bff6-6dba6842ebae",
+      "name": "GRUPO FERRENSA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "28b7f7f9-3ad9-5481-bfd3-66cced4eb187",
+      "name": "GRUPO MOLINA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "2a1df58a-bea3-5a4f-b258-ce3684f736db",
+      "name": "GRUPO SERVIDECONS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "2c348760-1ee0-5b69-8ed3-66646840de08",
+      "name": "DISTRIBUIDORA DE MATERIALES DIMACO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "2ca75686-4e71-5b3a-bdca-e213e8e5f9fa",
+      "name": "Grupo Carre O Luna"
+    },
+    {
+      "ferreterias": 2,
+      "id": "2cadb801-f7d5-5efa-8beb-2fee21789824",
+      "name": "GRUPO CONSTRUOFERTAS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "3034a07f-4fe0-5ada-b3db-1df52170b658",
+      "name": "GRUPO FERRETOL"
+    },
+    {
+      "ferreterias": 2,
+      "id": "3049adb0-933f-5655-9fbc-2035f4ecd6c1",
+      "name": "GRUPO SOLIS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "316ae846-e1da-590d-b3c9-caae47e6097e",
+      "name": "GRUPO CALLE"
+    },
+    {
+      "ferreterias": 2,
+      "id": "3d72b15e-94ea-535c-ace3-b0aba4f7dfe2",
+      "name": "GRUPO JARA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "4f3bc212-caa3-58ad-bcbd-dc43ed762d9e",
+      "name": "GRUPO REASCOS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "503fdb2a-22ac-564a-8e90-d41226c2b659",
+      "name": "GRUPO KUBIEC"
+    },
+    {
+      "ferreterias": 2,
+      "id": "5274f2d8-86b0-5eb9-a8ca-be7fd9876728",
+      "name": "Grupo A V Construventas"
+    },
+    {
+      "ferreterias": 2,
+      "id": "52837727-01f5-54b9-990d-0c7fd917b0a8",
+      "name": "GRUPO ZARATE CUE"
+    },
+    {
+      "ferreterias": 2,
+      "id": "52af80cc-0fa6-5617-b7f3-2e1b629dd150",
+      "name": "Construferias S A "
+    },
+    {
+      "ferreterias": 2,
+      "id": "550c1aaf-74b5-54b0-86a6-7b9db8cfe632",
+      "name": "GRUPO MATUCORSA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "58e5f3ae-fdfe-5f89-96af-8c01a3c19b6d",
+      "name": "GRUPO SOLIS IVAN STE"
+    },
+    {
+      "ferreterias": 2,
+      "id": "5c3d8d60-f1f3-5416-8412-509396292a79",
+      "name": "GRUPO BALDEON"
+    },
+    {
+      "ferreterias": 2,
+      "id": "5cafcad8-b9a9-52b1-83ee-30bc1779e08f",
+      "name": "GRUPO PEDRERA TIPAN JESUS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "5f6ccfc7-7e10-5e23-9b0b-27151b6bf804",
+      "name": "GRUPO MACOFER"
+    },
+    {
+      "ferreterias": 2,
+      "id": "620b3902-59cf-56be-af7a-ad30518ea90a",
+      "name": "GRUPO ROGEL JIMBO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "63bd8dd0-a5ec-55be-992e-1c1bc10d6cd8",
+      "name": "GRUPO TOBAR"
+    },
+    {
+      "ferreterias": 2,
+      "id": "652e88e4-2a4e-5997-b076-c0efd9f2720b",
+      "name": "GRUPO LUBRIFER"
+    },
+    {
+      "ferreterias": 2,
+      "id": "68aa28b7-958f-56fa-81b5-7eb2fa2e0c64",
+      "name": "Marco Vinicio Qui Onez Qui Onez"
+    },
+    {
+      "ferreterias": 2,
+      "id": "6934de1f-d40f-5e4c-b7af-87ec5534c845",
+      "name": "GRUPO CHANGO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "6ae194ac-3fee-5a60-8b2b-cc37c963680c",
+      "name": "GRUPO PINARGOTE SANTOS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "6b1099d1-7c0c-5287-918c-877dc21fba1a",
+      "name": "GRUPO YANEZ"
+    },
+    {
+      "ferreterias": 2,
+      "id": "6d83f7fb-bbda-5331-9413-e6347ffe6ad1",
+      "name": "MOLINA CAPON JULIA CLORINDA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "70bcb74e-e49c-57f1-bca2-18311fb50dcb",
+      "name": "GRUPO FLORNACORP"
+    },
+    {
+      "ferreterias": 2,
+      "id": "80f29f35-67d1-56ec-a5c2-214456a1f0ea",
+      "name": "GRUPO ACERCONS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "835fc505-5ff9-5ab6-842c-da9ea8d3053a",
+      "name": "GRUPO VILLA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "84fe42d1-d57e-52d2-ba3f-1d7c8af4b0b3",
+      "name": "GRUPO TUBEGAL"
+    },
+    {
+      "ferreterias": 2,
+      "id": "8b3e6854-fc8c-52e0-a7ae-31232bd488b8",
+      "name": "GRUPO PEZANTEZ"
+    },
+    {
+      "ferreterias": 2,
+      "id": "8b923f76-278e-5aaf-b556-413160637f0e",
+      "name": "GRUPO FIALLOS ELINAN"
+    },
+    {
+      "ferreterias": 2,
+      "id": "8bc5b8e7-c914-50f4-8c2f-75054cd678c1",
+      "name": "GRUPO NAVIA MACIAS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "8d1e43fa-1322-5f30-aabc-d8e30672e076",
+      "name": "GRUPO CORDERO OROSCO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "a486e640-1bff-525c-bb1d-16e00c41ff4f",
+      "name": "GRUPO BORJA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "a96c0afa-6916-5249-8103-d35918627fda",
+      "name": "GRUPO PANCHI"
+    },
+    {
+      "ferreterias": 2,
+      "id": "aaa851ca-b86b-5a44-bb38-c296bb1e5506",
+      "name": "GRUPO GABRI"
+    },
+    {
+      "ferreterias": 2,
+      "id": "aabd2d12-d799-5c81-95f4-d722fe8fcc57",
+      "name": "GRUPO ALARCON"
+    },
+    {
+      "ferreterias": 2,
+      "id": "abef98c2-8f0d-55ae-926e-96a3c484f116",
+      "name": "GRUPO CHINGA FAJARDO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "ac3e512a-2e23-5dac-8c8b-ad059682a09e",
+      "name": "GRUPO FERRONORTECORP"
+    },
+    {
+      "ferreterias": 2,
+      "id": "ad810af0-3df3-58e0-966a-cf0db84db714",
+      "name": "Grupo Vasconez "
+    },
+    {
+      "ferreterias": 2,
+      "id": "af35483f-8859-51d1-ba68-499a1e3d3ad1",
+      "name": "GRUPO ANITA PANTOJA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "b0267e28-98e0-553a-91fd-99013ae67dcc",
+      "name": "GRUPO PROHIERROS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "b3b59f7d-2470-5f93-9706-a24232b693db",
+      "name": "Serramax S A S"
+    },
+    {
+      "ferreterias": 2,
+      "id": "b7e8c559-a749-58e2-b79d-672bbf31ae9b",
+      "name": "GRUPO RIZZO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "b9549996-7f9d-5c7b-9ed5-045b1509c59d",
+      "name": "Omnisariato S A "
+    },
+    {
+      "ferreterias": 2,
+      "id": "b95ed8dc-73a6-52e2-a3ce-c180afd127c3",
+      "name": "GRUPO ESPINOZA CUE"
+    },
+    {
+      "ferreterias": 2,
+      "id": "b9bc5a11-c04f-5af6-af38-04b64af484fe",
+      "name": "GRUPO VERA LOOR"
+    },
+    {
+      "ferreterias": 2,
+      "id": "bbed4096-a690-56c7-8334-31917b2a29e3",
+      "name": "GRUPO ROMAN"
+    },
+    {
+      "ferreterias": 2,
+      "id": "bc16ae7a-a110-5a46-ba21-4090ad3b7fe7",
+      "name": "GRUPO QUIMJI BUSTAMANTE"
+    },
+    {
+      "ferreterias": 2,
+      "id": "bc30ba69-42d2-5507-93e0-198294d0076d",
+      "name": "Grupo M M"
+    },
+    {
+      "ferreterias": 2,
+      "id": "c257bdb2-6b05-5722-be6d-6abd88c41d35",
+      "name": "GRUPO BOSNA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "c645f82e-6bd8-5b94-9940-e73961de3862",
+      "name": "Grupo Constru Cevallos"
+    },
+    {
+      "ferreterias": 2,
+      "id": "c7843852-4ac9-500d-aee1-3da817949a37",
+      "name": "GRUPO BONILLA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "c84f35cd-9ff2-5b7e-a2ab-a5b3f9a0774b",
+      "name": "GRUPO DICOACE"
+    },
+    {
+      "ferreterias": 2,
+      "id": "c8902c19-72a5-5973-ae2b-b5777cbc1634",
+      "name": "GRUPO BRAVO CUE"
+    },
+    {
+      "ferreterias": 2,
+      "id": "ce23ca2d-d789-5d41-a973-cb20317a7e1c",
+      "name": "GRUPO MONTENEGRO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "cf0e52f2-fb92-550d-9797-86d04f63b4cf",
+      "name": "GRUPO MAZA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "d5906d84-0c38-55ca-a670-03f50756310a",
+      "name": "GRUPO MACONSTMA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "e3ba027b-d291-5b1a-8371-b6972ab65fa3",
+      "name": "GRUPO SILVA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "e4224a27-c582-5b9a-852a-07e77e940d70",
+      "name": "GRUPO ARRIETA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "e94fbc88-1dd4-5413-9577-da9ea0765730",
+      "name": "GRUPO LINO PLUA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "eb8d6ada-48cb-5ac7-abf4-c354a092061c",
+      "name": "Grupo Cede O Loor"
+    },
+    {
+      "ferreterias": 2,
+      "id": "eba777aa-94fb-5ce1-a33f-021fe1b91406",
+      "name": "GRUPO SANTOS BENAVIDEZ"
+    },
+    {
+      "ferreterias": 2,
+      "id": "f35aaa08-209d-5653-ae98-ba959c0b6758",
+      "name": "GRUPO BRIONES ZAMBRANO"
+    },
+    {
+      "ferreterias": 2,
+      "id": "f3e17ddb-78a9-5fc1-8e58-a88b0315d3db",
+      "name": "GRUPO VILLACIS"
+    },
+    {
+      "ferreterias": 2,
+      "id": "f54fe569-4af9-58a9-88fc-25ca73701891",
+      "name": "GRUPO ANCHUNDIA VELASQUEZ"
+    },
+    {
+      "ferreterias": 2,
+      "id": "fac9bdfb-79d8-5e5c-a19f-2ac62c2f2760",
+      "name": "GRUPO SALGADO PATRICIA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "fc59c837-ec3c-5ba7-93bf-23db6b1094e9",
+      "name": "William Fong S A "
+    },
+    {
+      "ferreterias": 2,
+      "id": "fe3dc703-2d49-52d6-a3fd-52a8eaae437b",
+      "name": "GRUPO CARRANZA"
+    },
+    {
+      "ferreterias": 2,
+      "id": "ff3fd05b-aeae-5bb1-8423-aab1c82d5709",
+      "name": "GRUPO MIRANDA"
+    }
+  ]
+}

@@ -26,6 +26,9 @@ const SKIP_ETL_WATERMARK =
   process.env.SKIP_ETL_WATERMARK === "1" || process.env.SKIP_ETL_WATERMARK === "true";
 const ETL_SUCCESS_PREFIX = (process.env.ETL_SUCCESS_PREFIX || "etl-success").replace(/\/$/, "");
 const UUID_NAMESPACE = "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b";
+const DBX_WAIT_TIMEOUT = process.env.DBX_WAIT_TIMEOUT || "50s";
+const DBX_POLL_INTERVAL_MS = parseInt(process.env.DBX_POLL_INTERVAL_MS || "3000", 10);
+const DBX_MAX_WAIT_MS = parseInt(process.env.DBX_MAX_WAIT_MS || "240000", 10);
 const PIPELINES_CONFIG_PATH =
   process.env.PIPELINES_CONFIG_PATH || path.join(__dirname, "pipelines.json");
 
@@ -37,6 +40,29 @@ function logInfo(message, extra) {
   } else {
     console.log(message);
   }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** PostgREST bulk writes require identical keys on every object (PGRST102). */
+function alignBatchObjectKeys(rows) {
+  if (!rows.length) return rows;
+  const keys = new Set();
+  for (const r of rows) {
+    for (const k of Object.keys(r)) keys.add(k);
+  }
+  const list = [...keys];
+  return rows.map((r) => {
+    const out = { ...r };
+    for (const k of list) {
+      if (!Object.prototype.hasOwnProperty.call(out, k)) {
+        out[k] = null;
+      }
+    }
+    return out;
+  });
 }
 
 function resolveSupabaseForPipeline(cfg) {
@@ -121,6 +147,120 @@ function isBlankValue(value) {
   return value === null || value === undefined || String(value).trim() === "";
 }
 
+function buildJsonbSpecsList(pipelineConfig) {
+  if (Array.isArray(pipelineConfig.build_jsonb_targets) && pipelineConfig.build_jsonb_targets.length) {
+    return pipelineConfig.build_jsonb_targets;
+  }
+  if (pipelineConfig.build_jsonb_object) {
+    return [pipelineConfig.build_jsonb_object];
+  }
+  return [];
+}
+
+/** Source column names referenced by build-jsonb specs (for Databricks SELECT). */
+function collectBuildJsonbSourceColumnRefs(spec) {
+  const cols = [];
+  if (!spec || typeof spec !== "object") return cols;
+  if (spec.root_object_from_columns && typeof spec.root_object_from_columns === "object" && !Array.isArray(spec.root_object_from_columns)) {
+    for (const sc of Object.values(spec.root_object_from_columns)) {
+      if (typeof sc === "string" && sc) cols.push(sc);
+    }
+  }
+  if (Array.isArray(spec.properties)) {
+    for (const p of spec.properties) {
+      if (p.object_from_columns && typeof p.object_from_columns === "object" && !Array.isArray(p.object_from_columns)) {
+        for (const sc of Object.values(p.object_from_columns)) {
+          if (typeof sc === "string" && sc) cols.push(sc);
+        }
+      }
+      if (typeof p.source_column === "string" && p.source_column) cols.push(p.source_column);
+    }
+  }
+  return cols;
+}
+
+/** One spec: either `root_object_from_columns` → flat object on `target`, or `properties` → keyed object. */
+function applyOneBuildJsonbFromRow(record, row, sourceIndex, spec) {
+  if (!spec || typeof spec !== "object" || !spec.target) return;
+  const { target, wrap_in_array: wrapInArray } = spec;
+  if (spec.root_object_from_columns && typeof spec.root_object_from_columns === "object" && !Array.isArray(spec.root_object_from_columns)) {
+    const nested = {};
+    for (const [nestedKey, srcCol] of Object.entries(spec.root_object_from_columns)) {
+      if (typeof srcCol !== "string") continue;
+      const si = sourceIndex[srcCol];
+      const raw = si !== undefined ? row[si] : undefined;
+      nested[nestedKey] = raw == null ? "" : String(raw).trim();
+    }
+    const wrapRoot = wrapInArray === true;
+    record[target] = wrapRoot ? [nested] : nested;
+    return;
+  }
+  if (!Array.isArray(spec.properties)) return;
+  const obj = {};
+  for (const p of spec.properties) {
+    const key = p.key;
+    if (!key) continue;
+    if (Object.prototype.hasOwnProperty.call(p, "literal")) {
+      obj[key] = p.literal;
+      continue;
+    }
+    if (p.object_from_columns && typeof p.object_from_columns === "object" && !Array.isArray(p.object_from_columns)) {
+      const nested = {};
+      for (const [nestedKey, srcCol] of Object.entries(p.object_from_columns)) {
+        if (typeof srcCol !== "string") continue;
+        const si = sourceIndex[srcCol];
+        const raw = si !== undefined ? row[si] : undefined;
+        nested[nestedKey] = raw == null ? "" : String(raw).trim();
+      }
+      obj[key] = nested;
+      continue;
+    }
+    const sc = p.source_column;
+    if (!sc) continue;
+    const si = sourceIndex[sc];
+    const raw = si !== undefined ? row[si] : undefined;
+    obj[key] = raw == null ? "" : String(raw).trim();
+  }
+  const wrap = wrapInArray !== false;
+  record[target] = wrap ? [obj] : obj;
+}
+
+function applyBuildJsonbFromPipelineConfig(record, row, sourceIndex, pipelineConfig) {
+  for (const spec of buildJsonbSpecsList(pipelineConfig)) {
+    applyOneBuildJsonbFromRow(record, row, sourceIndex, spec);
+  }
+}
+
+/** PostgREST `on_conflict` accepts comma-separated columns; we use the same string in pipelines.json */
+function parseConflictColumns(conflictKey) {
+  if (!conflictKey || typeof conflictKey !== "string") {
+    return conflictKey ? [String(conflictKey)] : [];
+  }
+  const parts = conflictKey
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length ? parts : [];
+}
+
+function compositeConflictKey(record, targetColumns) {
+  const parts = targetColumns.map((c) =>
+    record[c] != null && record[c] !== "" ? String(record[c]).trim() : ""
+  );
+  if (parts.some((p) => p === "")) return null;
+  return parts.join("\x1f");
+}
+
+function recordConflictKey(record, conflictKeyParam) {
+  const cols = parseConflictColumns(conflictKeyParam);
+  if (!cols.length) return "";
+  if (cols.length === 1) {
+    const v = record[cols[0]];
+    return v != null && v !== "" ? String(v) : "";
+  }
+  return compositeConflictKey(record, cols) || "";
+}
+
 function normalizeBoolean(value) {
   if (value === null || value === undefined) return false;
   if (typeof value === "boolean") return value;
@@ -129,19 +269,86 @@ function normalizeBoolean(value) {
   return ["1", "true", "t", "yes", "y", "si", "s"].includes(s);
 }
 
+function sourceColumnsList(pipelineConfig) {
+  const out = [];
+  const seen = new Set();
+  for (const m of pipelineConfig.column_mapping) {
+    if (!seen.has(m.source)) {
+      out.push(m.source);
+      seen.add(m.source);
+    }
+  }
+  for (const c of pipelineConfig.extra_source_columns || []) {
+    if (typeof c === "string" && c && !seen.has(c)) {
+      out.push(c);
+      seen.add(c);
+    }
+  }
+  for (const spec of buildJsonbSpecsList(pipelineConfig)) {
+    for (const c of collectBuildJsonbSourceColumnRefs(spec)) {
+      if (c && !seen.has(c)) {
+        out.push(c);
+        seen.add(c);
+      }
+    }
+  }
+  return out;
+}
+
 function sourceIndexMap(pipelineConfig) {
-  return Object.fromEntries(
-    pipelineConfig.column_mapping.map((m, i) => [m.source, i])
-  );
+  const cols = sourceColumnsList(pipelineConfig);
+  return Object.fromEntries(cols.map((name, i) => [name, i]));
 }
 
 function conflictSourceColumnIndex(pipelineConfig) {
-  const src = pipelineConfig.column_mapping.find((m) => m.target === pipelineConfig.conflict_key);
-  if (!src) return 0;
-  return pipelineConfig.column_mapping.findIndex((m) => m.source === src.source);
+  const idxMap = sourceIndexMap(pipelineConfig);
+  const cols = parseConflictColumns(pipelineConfig.conflict_key);
+  if (cols.length === 1) {
+    const src = pipelineConfig.column_mapping.find((m) => m.target === cols[0]);
+    if (!src) return 0;
+    const i = idxMap[src.source];
+    return i !== undefined ? i : 0;
+  }
+  if (cols.length > 1) {
+    const first = pipelineConfig.column_mapping.find((m) => m.target === cols[0]);
+    if (!first) return 0;
+    const i = idxMap[first.source];
+    return i !== undefined ? i : 0;
+  }
+  return 0;
 }
 
 function deduplicateRows(rows, pipelineConfig) {
+  const conflictKeyParam = pipelineConfig.conflict_key;
+  const cols = parseConflictColumns(conflictKeyParam);
+  const sourceIndex = sourceIndexMap(pipelineConfig);
+
+  if (cols.length > 1) {
+    const sources = cols
+      .map((t) => pipelineConfig.column_mapping.find((m) => m.target === t)?.source)
+      .filter(Boolean);
+    if (sources.length !== cols.length) {
+      console.warn("deduplicateRows: composite conflict_key targets missing from column_mapping; skipping dedupe.");
+      return rows;
+    }
+    const seen = new Map();
+    for (const row of rows) {
+      const parts = sources.map((src) => {
+        const i = sourceIndex[src];
+        const v = i !== undefined ? row[i] : undefined;
+        return v != null ? String(v).trim() : "";
+      });
+      if (parts.some((p) => !p)) continue;
+      const k = parts.join("\x1f");
+      seen.set(k, row);
+    }
+    const dupes = rows.length - seen.size;
+    if (dupes > 0) {
+      console.warn(`Removed ${dupes} duplicate rows on composite conflict key from Databricks.`);
+    }
+    return [...seen.values()];
+  }
+
   const idx = conflictSourceColumnIndex(pipelineConfig);
   const seen = new Map();
   for (const row of rows) {
@@ -198,13 +405,61 @@ function splitRowsByMode(rows, pipelineConfig, existingKeys, now) {
   return splitRowsTransportistas(rows, pipelineConfig, existingKeys, now);
 }
 
+/** Same logical RUC with/without leading zeros must share one dedupe bucket (unique tax_id in Postgres). */
+function normalizeTaxIdClusterKey(raw) {
+  const s = raw != null ? String(raw).trim() : "";
+  if (!s) return "";
+  if (!/^\d+$/.test(s)) return s;
+  const stripped = s.replace(/^0+/, "");
+  return stripped === "" ? "0" : stripped;
+}
+
+/**
+ * Collapse records sharing the same value for all listed target columns.
+ * `strategy`: "last" (default) or "first" for which row wins per dedupe key.
+ * Rows missing any dedupe key stay unmerged (appended as-is).
+ * For `tax_id`, the dedupe bucket uses normalized digits (leading zeros stripped) so "011…" and "11…" merge.
+ */
+function dedupeRecordsByTargetFields(records, targetKeys, opts = {}) {
+  const strategy = opts.strategy === "first" ? "first" : "last";
+  const keys = (Array.isArray(targetKeys) ? targetKeys : [targetKeys]).filter(
+    (k) => typeof k === "string" && k.trim() !== ""
+  );
+  if (!keys.length || !Array.isArray(records) || !records.length) return records;
+  const merged = new Map();
+  const rest = [];
+  for (const r of records) {
+    const parts = keys.map((k) => {
+      if (k === "tax_id") return normalizeTaxIdClusterKey(String(r.tax_id != null ? r.tax_id : "").trim());
+      const v = r[k];
+      return v != null && v !== "" ? String(v).trim() : "";
+    });
+    if (parts.some((p) => !p)) {
+      rest.push(r);
+      continue;
+    }
+    const k = keys.length === 1 ? parts[0] : parts.join("\x1f");
+    if (strategy === "first" && merged.has(k)) continue;
+    merged.set(k, r);
+  }
+  return rest.concat([...merged.values()]);
+}
+
 function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
   const sourceIndex = sourceIndexMap(pipelineConfig);
   const conflictKey = pipelineConfig.conflict_key;
-  const srcForConflict = pipelineConfig.column_mapping.find(
-    (m) => m.target === conflictKey
-  )?.source;
-  const defaultRequire = srcForConflict ? [srcForConflict] : [];
+  const conflictTargets = parseConflictColumns(conflictKey);
+  let defaultRequire = [];
+  if (conflictTargets.length === 1) {
+    const srcForConflict = pipelineConfig.column_mapping.find(
+      (m) => m.target === conflictTargets[0]
+    )?.source;
+    defaultRequire = srcForConflict ? [srcForConflict] : [];
+  } else if (conflictTargets.length > 1) {
+    defaultRequire = conflictTargets
+      .map((t) => pipelineConfig.column_mapping.find((m) => m.target === t)?.source)
+      .filter(Boolean);
+  }
   const requireNonNull = pipelineConfig.require_non_null || defaultRequire;
   const includeIngested = pipelineConfig.include_ingested_at !== false;
 
@@ -245,8 +500,61 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
         }
       }
     }
+    if (Array.isArray(pipelineConfig.json_parse_targets)) {
+      for (const field of pipelineConfig.json_parse_targets) {
+        const v = record[field];
+        if (typeof v === "string" && v.trim() !== "") {
+          try {
+            record[field] = JSON.parse(v);
+          } catch (e) {
+            console.warn(
+              `json_parse_targets: invalid JSON for ${field}: ${String(e.message || e).slice(0, 160)}`
+            );
+          }
+        }
+      }
+    }
+    if (Array.isArray(pipelineConfig.fill_missing_iso_timestamps)) {
+      for (const field of pipelineConfig.fill_missing_iso_timestamps) {
+        if (record[field] == null || record[field] === "") {
+          record[field] = now;
+        }
+      }
+    }
+    if (Array.isArray(pipelineConfig.derived_uuid5)) {
+      for (const spec of pipelineConfig.derived_uuid5) {
+        const targetCol = spec.target_column;
+        const sourceCol = spec.source_column;
+        if (!targetCol || !sourceCol) continue;
+        const cur = record[targetCol];
+        if (cur != null && String(cur).trim() !== "") continue;
+        const si = sourceIndex[sourceCol];
+        if (si === undefined || row[si] == null || String(row[si]).trim() === "") continue;
+        const ns = spec.namespace || UUID_NAMESPACE;
+        record[targetCol] = uuidv5(String(row[si]).trim(), ns);
+      }
+    }
     const idS = pipelineConfig.id_strategy;
-    if (idS?.type === "uuid5_from_source" && idS.source_column && idS.column) {
+    if (idS?.type === "uuid5_from_concat" && Array.isArray(idS.source_columns) && idS.column) {
+      const sep = idS.separator != null ? String(idS.separator) : "|";
+      const ns = idS.namespace || UUID_NAMESPACE;
+      const parts = idS.source_columns.map((col) => {
+        const si = sourceIndex[col];
+        const v = si !== undefined ? row[si] : undefined;
+        return v != null ? String(v).trim() : "";
+      });
+      if (parts.length && parts.every((p) => p !== "")) {
+        const generatedUuid = uuidv5(parts.join(sep), ns);
+        record[idS.column] = generatedUuid;
+        const dup = idS.duplicate_uuid_to;
+        if (dup) {
+          const cols = Array.isArray(dup) ? dup : [dup];
+          for (const c of cols) {
+            if (c && typeof c === "string") record[c] = generatedUuid;
+          }
+        }
+      }
+    } else if (idS?.type === "uuid5_from_source" && idS.source_column && idS.column) {
       const si = sourceIndex[idS.source_column];
       const ns = idS.namespace || UUID_NAMESPACE;
       if (si !== undefined && row[si] != null) {
@@ -261,13 +569,26 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
         }
       }
     }
+    if (buildJsonbSpecsList(pipelineConfig).length) {
+      applyBuildJsonbFromPipelineConfig(record, row, sourceIndex, pipelineConfig);
+    }
     if (includeIngested) {
       const tsCol = pipelineConfig.sync_timestamp_column || "_ingested_at";
       record[tsCol] = now;
     }
 
-    const ck = record[conflictKey];
-    const ckStr = ck != null ? String(ck) : "";
+    if (Array.isArray(pipelineConfig.require_non_null_targets)) {
+      let skipTargets = false;
+      for (const t of pipelineConfig.require_non_null_targets) {
+        if (isBlankValue(record[t])) {
+          skipTargets = true;
+          break;
+        }
+      }
+      if (skipTargets) continue;
+    }
+
+    const ckStr = recordConflictKey(record, conflictKey);
     allRows.push(record);
     if (ckStr && !existingKeys.has(ckStr)) {
       newRows.push(record);
@@ -381,8 +702,11 @@ async function getDatabricksOAuthToken() {
 }
 
 async function fetchDatabricks(pipelineConfig) {
-  const sourceColumns = pipelineConfig.column_mapping.map((m) => m.source).join(", ");
-  const statement = `SELECT ${sourceColumns} FROM ${pipelineConfig.source_table}`;
+  const sourceColumns = sourceColumnsList(pipelineConfig).join(", ");
+  const whereRaw = pipelineConfig.source_where;
+  const whereClause =
+    typeof whereRaw === "string" && whereRaw.trim() ? ` WHERE ${whereRaw.trim()} ` : "";
+  const statement = `SELECT ${sourceColumns} FROM ${pipelineConfig.source_table}${whereClause}`;
   const ctx = resolveDatabricksContext(pipelineConfig);
   const warehouseId = ctx.httpPath.split("/").pop();
 
@@ -398,7 +722,7 @@ async function fetchDatabricks(pipelineConfig) {
     body: JSON.stringify({
       warehouse_id: warehouseId,
       statement,
-      wait_timeout: "50s",
+      wait_timeout: DBX_WAIT_TIMEOUT,
       disposition: "INLINE",
     }),
   });
@@ -408,17 +732,95 @@ async function fetchDatabricks(pipelineConfig) {
     throw new Error(`Databricks query failed (${res.status}): ${txt.slice(0, 300)}`);
   }
 
-  const payload = await res.json();
-  if (payload.status?.state !== "SUCCEEDED") {
-    throw new Error(`Databricks statement status: ${payload.status?.state || "UNKNOWN"}`);
+  let payload = await res.json();
+  const startedAt = Date.now();
+  let state = payload.status?.state || "UNKNOWN";
+  let statementId = payload.statement_id;
+
+  // Large fact tables can stay PENDING after initial wait_timeout; poll until terminal state.
+  while ((state === "PENDING" || state === "RUNNING") && statementId) {
+    if (Date.now() - startedAt > DBX_MAX_WAIT_MS) {
+      throw new Error(`Databricks statement timeout after ${DBX_MAX_WAIT_MS}ms (last state: ${state})`);
+    }
+    await sleep(DBX_POLL_INTERVAL_MS);
+    const pollRes = await fetch(`https://${ctx.host}/api/2.0/sql/statements/${statementId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!pollRes.ok) {
+      const txt = await pollRes.text();
+      throw new Error(`Databricks poll failed (${pollRes.status}): ${txt.slice(0, 300)}`);
+    }
+    payload = await pollRes.json();
+    state = payload.status?.state || "UNKNOWN";
   }
 
-  const rows = payload.result?.data_array || [];
+  if (state !== "SUCCEEDED") {
+    throw new Error(`Databricks statement status: ${state}`);
+  }
+
+  const rows = [...(payload.result?.data_array || [])];
+  const fetchedChunkIndexes = new Set([payload.result?.chunk_index ?? 0]);
+
+  // Prefer explicit chunk count from manifest when present.
+  const totalChunks = payload.manifest?.total_chunk_count || 1;
+  for (let chunkIndex = 1; chunkIndex < totalChunks; chunkIndex += 1) {
+    if (fetchedChunkIndexes.has(chunkIndex)) continue;
+    const chunkPath = `/api/2.0/sql/statements/${statementId}/result/chunks/${chunkIndex}`;
+    const chunkRes = await fetch(`https://${ctx.host}${chunkPath}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!chunkRes.ok) {
+      const txt = await chunkRes.text();
+      throw new Error(`Databricks chunk fetch failed (${chunkRes.status}): ${txt.slice(0, 300)}`);
+    }
+    const chunkPayload = await chunkRes.json();
+    const chunkRows = chunkPayload.result?.data_array || chunkPayload.data_array || [];
+    rows.push(...chunkRows);
+    fetchedChunkIndexes.add(chunkPayload.result?.chunk_index ?? chunkPayload.chunk_index ?? chunkIndex);
+  }
+
+  // Fallback in case API returns a chain link but missing manifest chunk metadata.
+  let nextChunkLink = payload.result?.next_chunk_internal_link || null;
+  while (nextChunkLink) {
+    const chunkRes = await fetch(`https://${ctx.host}${nextChunkLink}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!chunkRes.ok) {
+      const txt = await chunkRes.text();
+      throw new Error(`Databricks chunk fetch failed (${chunkRes.status}): ${txt.slice(0, 300)}`);
+    }
+    const chunkPayload = await chunkRes.json();
+    const chunkIndex = chunkPayload.result?.chunk_index ?? chunkPayload.chunk_index ?? -1;
+    if (!fetchedChunkIndexes.has(chunkIndex)) {
+      const chunkRows = chunkPayload.result?.data_array || chunkPayload.data_array || [];
+      rows.push(...chunkRows);
+      fetchedChunkIndexes.add(chunkIndex);
+    }
+    nextChunkLink = chunkPayload.result?.next_chunk_internal_link || null;
+  }
+
+  const expected = payload.manifest?.total_row_count;
+  if (typeof expected === "number" && expected !== rows.length) {
+    console.warn(
+      `Databricks returned ${rows.length} row(s) but manifest reported ${expected}.`
+    );
+  }
   logInfo(`Fetched ${rows.length} row(s) from Databricks.`);
   return rows;
 }
 
 async function getExistingKeys(sb, targetTable, conflictKey) {
+  const columns = parseConflictColumns(conflictKey);
+  if (!columns.length) {
+    return new Set();
+  }
+  const selectParam = columns.join(",");
   const values = new Set();
   let offset = 0;
   const batch = 1000;
@@ -426,7 +828,7 @@ async function getExistingKeys(sb, targetTable, conflictKey) {
   while (true) {
     const res = await sb.get(
       targetTable,
-      { select: conflictKey },
+      { select: selectParam },
       { Range: `${offset}-${offset + batch - 1}` }
     );
 
@@ -437,8 +839,13 @@ async function getExistingKeys(sb, targetTable, conflictKey) {
     const data = await res.json();
     if (!data.length) break;
     for (const row of data) {
-      const v = row[conflictKey];
-      if (v != null) values.add(String(v));
+      if (columns.length === 1) {
+        const v = row[columns[0]];
+        if (v != null && v !== "") values.add(String(v));
+      } else {
+        const k = compositeConflictKey(row, columns);
+        if (k != null) values.add(k);
+      }
     }
     if (data.length < batch) break;
     offset += batch;
@@ -593,7 +1000,17 @@ async function runSyncForPipeline(event) {
     dbxRows = deduplicateRows(dbxRows, pipelineConfig);
   }
 
-  const { newRows, allRows } = splitRowsByMode(dbxRows, pipelineConfig, existing, now);
+  let { newRows, allRows } = splitRowsByMode(dbxRows, pipelineConfig, existing, now);
+  if (pipelineConfig.dedupe_records_by) {
+    const keys = pipelineConfig.dedupe_records_by;
+    const strat = pipelineConfig.dedupe_records_strategy === "first" ? "first" : "last";
+    const beforeAll = allRows.length;
+    allRows = dedupeRecordsByTargetFields(allRows, keys, { strategy: strat });
+    newRows = dedupeRecordsByTargetFields(newRows, keys, { strategy: strat });
+    if (allRows.length < beforeAll) {
+      logInfo("dedupe_records_by applied", { keys, strategy: strat, before: beforeAll, after: allRows.length });
+    }
+  }
   logInfo("Sync split", {
     pipeline: pipelineName,
     new: newRows.length,
@@ -610,7 +1027,7 @@ async function runSyncForPipeline(event) {
     new_rows_fields: buildRecordFieldStats(newRows, mappedTargets),
   };
   for (let i = 0; i < rowsToWrite.length; i += batchSize) {
-    const batch = rowsToWrite.slice(i, i + batchSize);
+    const batch = alignBatchObjectKeys(rowsToWrite.slice(i, i + batchSize));
     const res =
       writeMode === "upsert"
         ? await sb.upsert(targetTable, batch, conflictKey)
@@ -620,14 +1037,16 @@ async function runSyncForPipeline(event) {
       throw new Error(`Write failed: ${res.status} ${txt.slice(0, 300)}`);
     }
     if (writeMode === "upsert") {
-      const insertedInBatch = batch.filter(
-        (r) => r[conflictKey] != null && !existing.has(String(r[conflictKey]))
-      ).length;
+      const insertedInBatch = batch.filter((r) => {
+        const k = recordConflictKey(r, conflictKey);
+        return k !== "" && !existing.has(k);
+      }).length;
       inserted += insertedInBatch;
       updated += batch.length - insertedInBatch;
       for (const r of batch) {
-        if (r[conflictKey] != null) {
-          existing.add(String(r[conflictKey]));
+        const k = recordConflictKey(r, conflictKey);
+        if (k !== "") {
+          existing.add(k);
         }
       }
     } else {
@@ -667,9 +1086,10 @@ async function runSyncForPipeline(event) {
     skipped: dbxRows.length - rowsToWrite.length,
     quality_stats: qualityStats,
     sync_timestamp: syncTime,
-    inserted_records: newRows
-      .slice(0, 200)
-      .map((r) => ({ [conflictKey]: r[conflictKey] })),
+    inserted_records: newRows.slice(0, 200).map((r) => ({
+      conflict_key: recordConflictKey(r, conflictKey),
+      id: r.id,
+    })),
   };
   const s3LogUri = await saveEtlLog(detail);
   const s3LatestUri = await saveLatestPipelineSuccess(detail, s3LogUri);

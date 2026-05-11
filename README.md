@@ -74,7 +74,7 @@ Para un registro operacional **sin** Supabase, basta con S3 + `SKIP_ETL_WATERMAR
 }
 ```
 
-Ferreterías / `hardware_stores` (secondary):
+Ferreterías / `sa_hardware_stores` (secondary):
 
 ```json
 {
@@ -84,7 +84,7 @@ Ferreterías / `hardware_stores` (secondary):
 
 Referencia de payloads por pipeline: `pipeline_registry.json`.
 
-Grupos ferreteros → `hardware_store_groups` (secondary):
+Grupos ferreteros → `sa_hardware_store_groups` (secondary):
 
 ```json
 {
@@ -97,5 +97,13 @@ Materiales → `sa_materials` (secondary):
 ```json
 {
   "pipeline_name": "socio_adelca_materiales"
+}
+```
+
+Facturas rebate → `sa_invoices` (secondary):
+
+```json
+{
+  "pipeline_name": "socio_adelca_facturas_rebate"
 }
 ```
