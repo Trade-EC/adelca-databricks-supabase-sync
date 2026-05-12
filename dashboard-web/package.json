@@ -11,7 +11,8 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
     "vercel:sync-env": "bash scripts/sync-vercel-env-production.sh",
-    "vercel:push-env": "node scripts/push-vercel-env.mjs"
+    "vercel:push-env": "node scripts/push-vercel-env.mjs",
+    "vercel:deploy-prod": "bash scripts/deploy-vercel-production.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
