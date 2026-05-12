@@ -1,5 +1,11 @@
 import pipelinesRaw from "../../pipelines.json";
 
+export type ColumnMappingEntry = { source: string; target: string };
+
+export type IdStrategyConfig =
+  | { type: "uuid5_codigo_transportista"; column: string }
+  | { type: "uuid5_from_source"; column: string; source_column: string; namespace: string };
+
 export type PipelineConfig = {
   pipeline_name: string;
   source_table: string;
@@ -10,9 +16,19 @@ export type PipelineConfig = {
   conflict_key: string;
   batch_size: number;
   schedule: string;
+  column_mapping?: ColumnMappingEntry[];
+  /** Skip row early if any listed source field is blank (Lambda generic mode). */
+  require_non_null?: string[];
   supabase_profile?: "default" | "secondary";
   databricks_profile?: "prd" | "qas";
   row_mode?: "transportistas" | "generic";
+  id_strategy?: IdStrategyConfig;
+  /** Coalesce null/empty mapped values before further transforms (generic mode). */
+  null_coalesce?: Record<string, string | number | boolean | unknown[]>;
+  include_ingested_at?: boolean;
+  sync_timestamp_column?: string;
+  /** Map truthy/falsy from Databricks into booleans (generic mode). */
+  boolean_fields?: string[];
   /** Column for MAX() in dashboard (default _ingested_at) */
   datamart_timestamp_column?: string;
   /** When true, do not collapse duplicate keys from Databricks before load (handler). */
@@ -59,10 +75,10 @@ const PIPELINE_ORDER: Record<string, number> = {
   transportistas: 0,
   vehiculos: 1,
   viajes: 2,
-  socio_adelca_ferreterias: 3,
-  socio_adelca_grupos: 4,
-  socio_adelca_materiales: 5,
-  socio_adelca_facturas_rebate: 6,
+  socio_adelca_grupos: 3,
+  socio_adelca_ferreterias: 4,
+  socio_adelca_facturas_rebate: 5,
+  socio_adelca_materiales: 6,
 };
 
 /**
