@@ -60,7 +60,7 @@
         "target": "license_plate"
       },
       {
-        "source": "tipo_trasporte",
+        "source": "tipo_transporte",
         "target": "type"
       },
       {
@@ -137,6 +137,18 @@
       {
         "source": "valor_neto",
         "target": "net_pay"
+      },
+      {
+        "source": "nombre_conductor",
+        "target": "driver"
+      },
+      {
+        "source": "tipo_expedicion_viaje",
+        "target": "expedition_type"
+      },
+      {
+        "source": "RUTA",
+        "target": "route"
       }
     ],
     "id_strategy": {

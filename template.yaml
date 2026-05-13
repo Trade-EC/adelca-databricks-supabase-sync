@@ -130,7 +130,7 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Viajes (fact_transportistas_viajes → ct_freights) — daily with other pipelines
+            Description: Viajes (db_trade_fact_transportistas_viajes → ct_freights, incl. driver/route/expedition_type) — daily
             Enabled: true
             Input: '{"pipeline_name":"viajes"}'
         ScheduledFerreteriasSync:

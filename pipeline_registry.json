@@ -9,7 +9,8 @@
       "invoke": { "pipeline_name": "vehiculos" }
     },
     "viajes": {
-      "invoke": { "pipeline_name": "viajes" }
+      "invoke": { "pipeline_name": "viajes" },
+      "notes": "db_trade_fact_transportistas_viajes → ct_freights; driver, expedition_type, route desde tabla QAS ajustada"
     },
     "socio_adelca_ferreterias": {
       "invoke": { "pipeline_name": "socio_adelca_ferreterias" },
