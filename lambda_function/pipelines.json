@@ -102,7 +102,7 @@
     "row_mode": "generic",
     "source_table": "qas.gldlogistica.db_trade_fact_transportistas_viajes",
     "target_table": "ct_freights",
-    "write_mode": "insert_only",
+    "write_mode": "upsert",
     "conflict_key": "id",
     "require_non_null": [
       "codigo_viaje"
