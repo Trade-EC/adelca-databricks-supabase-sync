@@ -3,9 +3,12 @@
  *   - qas.gldlogistica.db_trade_fact_transportistas_viajes.nombre_conductor
  *   - qas.gldqas.beetrack_routes.driver_name
  *
- * No existe columna común documentada tipo shipment_id: en MTZ, tknum = codigo_viaje (no es el
- * dispatches[].identifier de Beetrack, p.ej. 81256xxx). El cruce aquí es HEURÍSTICO:
- *   placa normalizada (sin guiones, mayúsculas) + fecha = dispatch_date
+ * Regla de negocio: el id de expedición / envío NO es comparable entre MTZ viajes y Beetrack.
+ * Solo pueden relacionar: (1) placa — placa vs truck_identifier — y (2) driver_identifier en Beetrack
+ * (en el snapshot QAS no hay columna en viajes que iguala driver_identifier; se reportan conteos 0).
+ *
+ * Cruce implementado para métricas: placa normalizada + fecha = dispatch_date (heurístico; puede
+ * haber varias rutas Beetrack o varios viajes el mismo día con la misma placa).
  *
  * Uso: node scripts/compare_viajes_beetrack_driver.js
  */
@@ -52,6 +55,22 @@ async function runStatement(statement) {
 }
 
 async function main() {
+  const joinDriverIdCodigo = await runStatement(`
+    SELECT COUNT(*) AS c FROM ${V} v
+    INNER JOIN ${B} b ON lower(trim(b.driver_identifier)) = lower(trim(v.codigo_unico_transportista))
+  `);
+  const joinDriverIdRuc = await runStatement(`
+    SELECT COUNT(*) AS c FROM ${V} v
+    INNER JOIN ${B} b ON lower(trim(b.driver_identifier)) = lower(trim(v.ruc))
+  `);
+  const joinPlateDateAndDriverId = await runStatement(`
+    SELECT COUNT(*) AS c FROM ${V} v
+    INNER JOIN ${B} b
+      ON upper(replace(trim(v.placa), '-', '')) = upper(replace(trim(b.truck_identifier), '-', ''))
+     AND v.fecha = b.dispatch_date
+     AND lower(trim(b.driver_identifier)) = lower(trim(v.codigo_unico_transportista))
+  `);
+
   const summarySql = `
 WITH v AS (
   SELECT codigo_viaje, nombre_conductor, fecha,
@@ -106,10 +125,17 @@ SELECT
   ] = rows[0];
 
   const out = {
+    business_rule:
+      "No hay id de expedición común entre tablas; solo placa (placa ↔ truck_identifier) o driver_identifier en Beetrack pueden vincular; en QAS viajes no expone un campo que iguala driver_identifier (pruebas codigo_unico_transportista / ruc = 0 filas).",
     join_rule:
       "upper(replace(trim(placa),'-','')) + fecha = upper(replace(trim(truck_identifier),'-','')) + dispatch_date",
+    driver_identifier_equality_join_rows: {
+      driver_identifier_eq_codigo_unico_transportista: Number(joinDriverIdCodigo[0][0]),
+      driver_identifier_eq_ruc: Number(joinDriverIdRuc[0][0]),
+      plate_and_date_and_driver_identifier_eq_codigo_unico: Number(joinPlateDateAndDriverId[0][0]),
+    },
     warning:
-      "Cruce heurístico: una misma placa+día puede generar varias filas Beetrack o varios viajes; join_pairs puede ser > viajes.",
+      "Cruce por placa+fecha es heurístico: una misma placa+día puede generar varias filas Beetrack o varios viajes; join_pairs puede ser > viajes.",
     viajes_total: Number(viajes_rows),
     beetrack_total: Number(beetrack_rows),
     join_pairs_plate_date: Number(join_pairs),
