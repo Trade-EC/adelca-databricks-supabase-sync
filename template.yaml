@@ -65,6 +65,16 @@ Parameters:
     Type: String
     Default: cron(0 5 * * ? *)
     Description: How often to run the sync (EventBridge schedule)
+  ScheduledPipelinesEnabled:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: When false, all EventBridge schedules for the sync Lambda are disabled (invoke still works).
+
+Conditions:
+  ScheduledPipelinesOn: !Equals [!Ref ScheduledPipelinesEnabled, "true"]
 
 Resources:
   EtlLogsBucket:
@@ -117,49 +127,49 @@ Resources:
           Properties:
             Schedule: !Ref ScheduleExpression
             Description: Scheduled Databricks PRD to Supabase incremental sync
-            Enabled: true
+            Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"transportistas"}'
         ScheduledSecondarySync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
             Description: Scheduled Databricks QAS to secondary Supabase sync
-            Enabled: true
+            Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"vehiculos"}'
         ScheduledViajesSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
             Description: Viajes (db_trade_fact_transportistas_viajes → ct_freights, incl. driver/route/expedition_type) — daily
-            Enabled: true
+            Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"viajes"}'
         ScheduledFerreteriasSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
             Description: Ferreterias Adelca (dim_ferreterias_mtz → sa_hardware_stores)
-            Enabled: true
+            Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"socio_adelca_ferreterias"}'
         ScheduledGruposFerreterosSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
             Description: Grupos ferreteros (dim_grupos_ferreteros_mtz → sa_hardware_store_groups)
-            Enabled: true
+            Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"socio_adelca_grupos"}'
         ScheduledMaterialesSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
             Description: Materiales (dim_materiales_rebates_slv → sa_materials)
-            Enabled: true
+            Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"socio_adelca_materiales"}'
         ScheduledFacturasRebateSync:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
             Description: Facturas SA (fact_invoices_sa → sa_invoices)
-            Enabled: true
+            Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"socio_adelca_facturas_rebate"}'
       Policies:
         - AWSLambdaBasicExecutionRole
