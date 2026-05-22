@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 type RunInfo = {
   status: string;
@@ -17,19 +17,24 @@ type RunInfo = {
 
 type PipelineRow = {
   pipeline_name: string;
+  source_kind?: "databricks" | "supabase";
+  source_supabase_profile?: "default" | "secondary" | "tertiary";
+  source_supabase_accept_profile?: string;
   source_table: string;
   target_table: string;
   write_mode: "insert_only" | "upsert";
   conflict_key: string;
   schedule: string;
+  mapping_summary?: string;
   databricks_profile?: "prd" | "qas";
-  supabase_profile?: "default" | "secondary";
-  source_count: number;
+  supabase_profile?: "default" | "secondary" | "tertiary";
+  source_count: number | null;
   dest_count: number | null;
   pending: number | null;
   watermark: string | null;
   datamart_watermark: string | null;
-  source_audit_created_at_max: string | null;
+  source_sync_at: string | null;
+  metrics_source: "s3" | "supabase" | null;
   last_run: RunInfo | null;
   pipeline_error?: string | null;
 };
@@ -44,7 +49,7 @@ type DashboardPayload = {
 
 export default function Home() {
   const [data, setData] = useState<DashboardPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [runningPipeline, setRunningPipeline] = useState<string | null>(null);
   const [runFeedback, setRunFeedback] = useState<
@@ -58,6 +63,7 @@ export default function Home() {
   >({});
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await fetch("/api/dashboard", { cache: "no-store" });
       const text = await res.text();
@@ -117,28 +123,30 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    const scheduled = window.setTimeout(() => {
-      load().catch(console.error);
-    }, 0);
-    const id = window.setInterval(() => {
-      load().catch(console.error);
-    }, 30000);
-    return () => {
-      window.clearTimeout(scheduled);
-      window.clearInterval(id);
-    };
-  }, [load]);
-
   return (
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="rounded-xl border border-zinc-700 bg-zinc-900 p-5">
-          <h1 className="text-2xl font-bold">Databricks → Supabase Pipelines</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            Updated: {data?.timestamp ?? "loading..."} | Lambda: {data?.lambda?.name ?? "-"} (
-            {data?.lambda?.runtime ?? "-"}) | Pipelines: {data?.pipelines?.length ?? "—"}
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Databricks → Supabase Pipelines</h1>
+              <p className="mt-1 text-sm text-zinc-400">
+                Updated: {data?.timestamp ?? "—"} | Lambda: {data?.lambda?.name ?? "-"} (
+                {data?.lambda?.runtime ?? "-"}) | Pipelines: {data?.pipelines?.length ?? "—"}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Sin auto-refresh ni consultas Databricks: métricas desde S3/Supabase solo al pulsar Actualizar.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => load().catch(console.error)}
+              disabled={loading}
+              className="rounded bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-white disabled:opacity-60"
+            >
+              {loading ? "Actualizando..." : "Actualizar datos"}
+            </button>
+          </div>
           {data?.aws_error ? (
             <p className="mt-2 text-xs text-amber-300">
               AWS (metadata): {data.aws_error} — tabla de pipelines puede seguir cargando; revisa
@@ -148,9 +156,14 @@ export default function Home() {
         </header>
 
         <section className="rounded-xl border border-zinc-700 bg-zinc-900 p-4 overflow-x-auto">
-          {loading && <div className="text-zinc-400">Loading pipelines...</div>}
+          {loading && <div className="text-zinc-400">Cargando pipelines...</div>}
           {!loading && loadError && <div className="text-red-300 text-sm">{loadError}</div>}
-          {!loading && (
+          {!loading && !data && !loadError && (
+            <div className="text-zinc-400 text-sm">
+              Pulsa &quot;Actualizar datos&quot; para cargar métricas (S3 checkpoint, Supabase, Lambda).
+            </div>
+          )}
+          {!loading && data && (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-zinc-400 border-b border-zinc-700">
@@ -158,10 +171,10 @@ export default function Home() {
                   <th className="py-2 pr-4">Entorno</th>
                   <th className="py-2 pr-4">Mode</th>
                   <th className="py-2 pr-4">Source</th>
-                  <th className="py-2 pr-4">Target</th>
+                  <th className="py-2 pr-4">Target / mapping</th>
                   <th className="py-2 pr-4">Counts</th>
                   <th className="py-2 pr-4">Watermarks</th>
-                  <th className="py-2 pr-4">Databricks Audit</th>
+                  <th className="py-2 pr-4">Última sync ETL</th>
                   <th className="py-2 pr-4">Last Run</th>
                   <th className="py-2 pr-4">Action</th>
                 </tr>
@@ -172,11 +185,24 @@ export default function Home() {
                     <td className="py-3 pr-4 font-medium">{p.pipeline_name}</td>
                     <td className="py-3 pr-4 text-xs text-zinc-300">
                       <div className="flex flex-wrap gap-1">
-                        <span className="rounded bg-zinc-800 px-2 py-0.5 text-zinc-300">
-                          DBX {p.databricks_profile ?? "—"}
+                        <span
+                          className="rounded bg-violet-900/50 px-2 py-0.5 text-violet-200"
+                          title="Origen de datos"
+                        >
+                          src{" "}
+                          {p.source_kind === "supabase"
+                            ? `SB ${p.source_supabase_profile ?? "default"}${
+                                p.source_supabase_accept_profile
+                                  ? ` · ${p.source_supabase_accept_profile}`
+                                  : ""
+                              }`
+                            : `DBX ${p.databricks_profile ?? "prd"}`}
                         </span>
-                        <span className="rounded bg-slate-800 px-2 py-0.5 text-slate-200">
-                          SB {p.supabase_profile ?? "default"}
+                        <span
+                          className="rounded bg-slate-800 px-2 py-0.5 text-slate-200"
+                          title="Destino PostgREST"
+                        >
+                          dst SB {p.supabase_profile ?? "default"}
                         </span>
                         <span className="rounded bg-zinc-800/80 px-2 py-0.5 text-zinc-400" title="Schedule en config">
                           {p.schedule === "manual" ? "manual" : "cron"}
@@ -185,11 +211,25 @@ export default function Home() {
                     </td>
                     <td className="py-3 pr-4">{p.write_mode}</td>
                     <td className="py-3 pr-4 text-zinc-300">{p.source_table}</td>
-                    <td className="py-3 pr-4 text-zinc-300">{p.target_table}</td>
+                    <td className="py-3 pr-4 text-zinc-300">
+                      <div>{p.target_table}</div>
+                      <div className="mt-1 text-[11px] text-zinc-500 max-w-md">
+                        {p.write_mode} · {p.conflict_key}
+                        {p.mapping_summary ? (
+                          <>
+                            <br />
+                            {p.mapping_summary}
+                          </>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="py-3 pr-4">
-                      src {p.source_count} / dst {p.dest_count ?? "—"}
+                      src {p.source_count ?? "—"} / dst {p.dest_count ?? "—"}
                       <div className="text-xs text-zinc-400">
                         pending {p.pending ?? "—"}
+                        {p.metrics_source === "s3" ? (
+                          <span className="ml-1 text-zinc-500">(S3)</span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="py-3 pr-4 text-xs text-zinc-300">
@@ -197,7 +237,7 @@ export default function Home() {
                       <div className="text-zinc-400">datamart: {p.datamart_watermark ?? "—"}</div>
                     </td>
                     <td className="py-3 pr-4 text-xs text-zinc-300">
-                      {p.source_audit_created_at_max ?? "—"}
+                      {p.source_sync_at ?? "—"}
                     </td>
                     <td className="py-3 pr-4">
                       {p.pipeline_error && (

@@ -1,6 +1,18 @@
 import { appConfig } from "./config";
 
-export type SupabaseProfile = "default" | "secondary";
+export type SupabaseProfile = "default" | "secondary" | "tertiary";
+
+const PROFILE_LABEL: Record<SupabaseProfile, string> = {
+  default: "Default",
+  secondary: "Secondary",
+  tertiary: "Tertiary",
+};
+
+const PROFILE_ENV_HINT: Record<SupabaseProfile, string> = {
+  default: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY",
+  secondary: "SUPABASE_SECONDARY_URL / SUPABASE_SECONDARY_SERVICE_ROLE_KEY",
+  tertiary: "SUPABASE_TERTIARY_URL / SUPABASE_TERTIARY_SERVICE_ROLE_KEY",
+};
 
 function credsForProfile(profile: SupabaseProfile = "default") {
   if (profile === "secondary") {
@@ -10,6 +22,15 @@ function credsForProfile(profile: SupabaseProfile = "default") {
     return {
       supabaseUrl: appConfig.supabaseSecondaryUrl,
       supabaseKey: appConfig.supabaseSecondaryKey,
+    };
+  }
+  if (profile === "tertiary") {
+    if (!appConfig.supabaseTertiaryUrl || !appConfig.supabaseTertiaryKey) {
+      return null;
+    }
+    return {
+      supabaseUrl: appConfig.supabaseTertiaryUrl,
+      supabaseKey: appConfig.supabaseTertiaryKey,
     };
   }
   if (!appConfig.supabaseUrl || !appConfig.supabaseKey) {
@@ -22,9 +43,7 @@ function headersForProfile(profile: SupabaseProfile, extra?: Record<string, stri
   const c = credsForProfile(profile);
   if (!c)
     throw new Error(
-      profile === "secondary"
-        ? "Secondary Supabase not configured (SUPABASE_SECONDARY_URL / SUPABASE_SECONDARY_SERVICE_ROLE_KEY)"
-        : "Default Supabase not configured (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)"
+      `${PROFILE_LABEL[profile]} Supabase not configured (${PROFILE_ENV_HINT[profile]})`
     );
   return {
     apikey: c.supabaseKey,
@@ -34,13 +53,24 @@ function headersForProfile(profile: SupabaseProfile, extra?: Record<string, stri
   };
 }
 
-export async function supabaseCount(table: string, profile: SupabaseProfile = "default"): Promise<number | null> {
+export async function supabaseCount(
+  table: string,
+  profile: SupabaseProfile = "default",
+  opts?: { acceptProfile?: string | null }
+): Promise<number | null> {
   const c = credsForProfile(profile);
   if (!c) return null;
+  const extra: Record<string, string> = { Prefer: "count=exact", Range: "0-0" };
+  const ap = opts?.acceptProfile;
+  if (typeof ap === "string" && ap.trim()) {
+    const s = ap.trim();
+    extra["Accept-Profile"] = s;
+    extra["Content-Profile"] = s;
+  }
   const res = await fetch(
-    `${c.supabaseUrl}/rest/v1/${table}?select=${encodeURIComponent("*")}`,
+    `${c.supabaseUrl}/rest/v1/${encodeURIComponent(table)}?select=${encodeURIComponent("*")}`,
     {
-      headers: headersForProfile(profile, { Prefer: "count=exact", Range: "0-0" }),
+      headers: headersForProfile(profile, extra),
       cache: "no-store",
     }
   );
@@ -86,4 +116,11 @@ export async function supabaseDatamartWatermark(
   if (!res.ok) return null;
   const data = (await res.json()) as Record<string, string | undefined>[];
   return data[0]?.[timestampColumn] || null;
+}
+
+/** Map pipeline JSON `supabase_profile` to API profile (unknown values → default). */
+export function resolveSupabaseProfileFromPipeline(raw?: string): SupabaseProfile {
+  if (raw === "secondary") return "secondary";
+  if (raw === "tertiary") return "tertiary";
+  return "default";
 }

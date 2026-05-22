@@ -6,9 +6,21 @@ export type IdStrategyConfig =
   | { type: "uuid5_codigo_transportista"; column: string }
   | { type: "uuid5_from_source"; column: string; source_column: string; namespace: string };
 
+export type PipelineDomain = "transportistas" | "socio_adelca";
+
 export type PipelineConfig = {
   pipeline_name: string;
+  /** Logical product domain on secondary Supabase (see pipeline_registry.json → domains). */
+  domain?: PipelineDomain;
   source_table: string;
+  /** When `supabase`, rows are read from PostgREST instead of Databricks. Default `databricks`. */
+  source_kind?: "databricks" | "supabase";
+  /** Supabase project used for source reads when `source_kind` is `supabase`. */
+  source_supabase_profile?: "default" | "secondary" | "tertiary";
+  /** PostgREST `Accept-Profile` / `Content-Profile` (e.g. `api` for views in schema api). */
+  source_supabase_accept_profile?: string;
+  /** Page size for Range pagination on Supabase source reads (default 1000, max 5000). */
+  supabase_source_page_size?: number;
   /** Appended as `WHERE ...` on the Databricks SELECT (trusted config only). */
   source_where?: string;
   target_table: string;
@@ -19,7 +31,7 @@ export type PipelineConfig = {
   column_mapping?: ColumnMappingEntry[];
   /** Skip row early if any listed source field is blank (Lambda generic mode). */
   require_non_null?: string[];
-  supabase_profile?: "default" | "secondary";
+  supabase_profile?: "default" | "secondary" | "tertiary";
   databricks_profile?: "prd" | "qas";
   row_mode?: "transportistas" | "generic";
   id_strategy?: IdStrategyConfig;
@@ -45,6 +57,12 @@ export type PipelineConfig = {
   fill_missing_iso_timestamps?: string[];
   /** Appended to Databricks SELECT (generic mode); not written unless mapped or derived. */
   extra_source_columns?: string[];
+  /** PostgREST order on Supabase source reads (e.g. visitor_updated_at.desc). */
+  supabase_source_order?: string;
+  /** After mapping: set target jsonb array from one source scalar (e.g. placa → license_plates). */
+  json_array_from_source?: { source: string; target: string }[];
+  /** After json_parse: reshape materials_weight_totals for Zod (socio_adelca_facturas_rebate). */
+  transform_materials_weight_zod?: boolean;
   /** After fill_missing_iso: set target_column to uuid5(row[source]) when target empty (generic mode). */
   derived_uuid5?: { source_column: string; target_column: string; namespace?: string }[];
   /** After full record build: skip row if any listed target field is blank (generic mode). */
@@ -75,10 +93,11 @@ const PIPELINE_ORDER: Record<string, number> = {
   transportistas: 0,
   vehiculos: 1,
   viajes: 2,
-  socio_adelca_grupos: 3,
-  socio_adelca_ferreterias: 4,
-  socio_adelca_facturas_rebate: 5,
-  socio_adelca_materiales: 6,
+  conductores: 3,
+  socio_adelca_grupos: 4,
+  socio_adelca_ferreterias: 5,
+  socio_adelca_facturas_rebate: 6,
+  socio_adelca_materiales: 7,
 };
 
 /**
@@ -93,5 +112,31 @@ export function readPipelines(): PipelineConfig[] {
     if (oa !== ob) return oa - ob;
     return a.pipeline_name.localeCompare(b.pipeline_name);
   });
+}
+
+/** One-line mapping for dashboard (column_mapping + json_array_from_source). */
+export function formatMappingSummary(p: PipelineConfig): string {
+  const parts: string[] = [];
+  for (const m of p.column_mapping || []) {
+    parts.push(`${m.source}→${m.target}`);
+  }
+  for (const j of p.json_array_from_source || []) {
+    parts.push(`${j.source}→${j.target}[]`);
+  }
+  if (p.id_strategy?.type === "uuid5_from_source" && p.id_strategy.source_column) {
+    parts.push(`id=uuid5(${p.id_strategy.source_column})`);
+  }
+  return parts.join(", ");
+}
+
+export function formatPipelineSourceLabel(p: PipelineConfig): string {
+  if (p.source_kind === "supabase") {
+    const prof = p.source_supabase_profile || "default";
+    const schema = p.source_supabase_accept_profile
+      ? ` schema ${p.source_supabase_accept_profile}`
+      : "";
+    return `SB ${prof}${schema}`;
+  }
+  return `DBX ${p.databricks_profile ?? "prd"}`;
 }
 

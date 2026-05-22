@@ -9,6 +9,9 @@ export type S3EtlCheckpoint = {
   updated?: number;
   total?: number;
   skipped?: number;
+  source_count?: number;
+  dest_count_before?: number;
+  dest_count_after?: number;
   full_log_uri?: string | null;
 };
 

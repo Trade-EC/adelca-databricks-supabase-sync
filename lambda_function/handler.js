@@ -2,6 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { v5: uuidv5 } = require("uuid");
+const {
+  transformMaterialsWeightTotals,
+  fetchSaMaterialsCatalog,
+} = require("./sa_invoice_zod_transform");
 
 const DATABRICKS_HOST = process.env.DATABRICKS_HOST || process.env.DATABRICKS_PRD_HOST || "";
 const DATABRICKS_HTTP_PATH =
@@ -18,6 +22,8 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_SECONDARY_URL = (process.env.SUPABASE_SECONDARY_URL || "").replace(/\/$/, "");
 const SUPABASE_SECONDARY_KEY = process.env.SUPABASE_SECONDARY_SERVICE_ROLE_KEY || "";
+const SUPABASE_TERTIARY_URL = (process.env.SUPABASE_TERTIARY_URL || "").replace(/\/$/, "");
+const SUPABASE_TERTIARY_KEY = process.env.SUPABASE_TERTIARY_SERVICE_ROLE_KEY || "";
 
 const WATERMARK_TABLE = "etl_watermarks";
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || "500", 10);
@@ -65,20 +71,32 @@ function alignBatchObjectKeys(rows) {
   });
 }
 
-function resolveSupabaseForPipeline(cfg) {
-  const profile = cfg.supabase_profile || "default";
-  if (profile === "secondary") {
+function resolveSupabaseByProfile(profile) {
+  const p = profile || "default";
+  if (p === "secondary") {
     if (!SUPABASE_SECONDARY_URL || !SUPABASE_SECONDARY_KEY) {
       throw new Error(
-        "Pipeline uses supabase_profile=secondary: set SUPABASE_SECONDARY_URL and SUPABASE_SECONDARY_SERVICE_ROLE_KEY on the Lambda"
+        "supabase_profile=secondary: set SUPABASE_SECONDARY_URL and SUPABASE_SECONDARY_SERVICE_ROLE_KEY on the Lambda"
       );
     }
     return { baseUrl: SUPABASE_SECONDARY_URL, serviceKey: SUPABASE_SECONDARY_KEY };
+  }
+  if (p === "tertiary") {
+    if (!SUPABASE_TERTIARY_URL || !SUPABASE_TERTIARY_KEY) {
+      throw new Error(
+        "supabase_profile=tertiary: set SUPABASE_TERTIARY_URL and SUPABASE_TERTIARY_SERVICE_ROLE_KEY on the Lambda"
+      );
+    }
+    return { baseUrl: SUPABASE_TERTIARY_URL, serviceKey: SUPABASE_TERTIARY_KEY };
   }
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Default Supabase (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY) not configured");
   }
   return { baseUrl: SUPABASE_URL, serviceKey: SUPABASE_KEY };
+}
+
+function resolveSupabaseForPipeline(cfg) {
+  return resolveSupabaseByProfile(cfg.supabase_profile || "default");
 }
 
 function makeSupabaseClient(baseUrl, serviceKey) {
@@ -141,6 +159,16 @@ function cleanUniqueField(value) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
   return s || null;
+}
+
+/** Ecuador mobile: 0988634965 → +593988634965 (prefix +593, drop leading 0). */
+function normalizeEcuadorPhone593(raw) {
+  if (raw == null || raw === "") return null;
+  let digits = String(raw).replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("593")) return `+${digits}`;
+  if (digits.startsWith("0")) digits = digits.slice(1);
+  return `+593${digits}`;
 }
 
 function isBlankValue(value) {
@@ -266,7 +294,7 @@ function normalizeBoolean(value) {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   const s = String(value).trim().toLowerCase();
-  return ["1", "true", "t", "yes", "y", "si", "s"].includes(s);
+  return ["1", "true", "t", "yes", "y", "si", "s", "rutero"].includes(s);
 }
 
 function sourceColumnsList(pipelineConfig) {
@@ -483,6 +511,9 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
       const i = sourceIndex[mapping.source];
       record[mapping.target] = i !== undefined ? row[i] : null;
     }
+    if (pipelineConfig.phone_normalize_ec593 && record.phone != null && String(record.phone).trim() !== "") {
+      record.phone = normalizeEcuadorPhone593(record.phone);
+    }
     if (Array.isArray(pipelineConfig.boolean_fields)) {
       for (const field of pipelineConfig.boolean_fields) {
         if (Object.prototype.hasOwnProperty.call(record, field)) {
@@ -513,6 +544,9 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
           }
         }
       }
+    }
+    if (pipelineConfig.transform_materials_weight_zod && pipelineConfig._saMaterialsCatalog) {
+      transformMaterialsWeightTotals(record, pipelineConfig._saMaterialsCatalog);
     }
     if (Array.isArray(pipelineConfig.fill_missing_iso_timestamps)) {
       for (const field of pipelineConfig.fill_missing_iso_timestamps) {
@@ -572,6 +606,15 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
     if (buildJsonbSpecsList(pipelineConfig).length) {
       applyBuildJsonbFromPipelineConfig(record, row, sourceIndex, pipelineConfig);
     }
+    if (Array.isArray(pipelineConfig.json_array_from_source)) {
+      for (const spec of pipelineConfig.json_array_from_source) {
+        if (!spec || typeof spec !== "object" || !spec.target || !spec.source) continue;
+        const si = sourceIndex[spec.source];
+        const raw = si !== undefined ? row[si] : undefined;
+        if (raw == null || String(raw).trim() === "") continue;
+        record[spec.target] = [String(raw).trim()];
+      }
+    }
     if (includeIngested) {
       const tsCol = pipelineConfig.sync_timestamp_column || "_ingested_at";
       record[tsCol] = now;
@@ -618,6 +661,9 @@ function splitRowsTransportistas(rows, pipelineConfig, existingKeys, now) {
       sourceIndex.telefono !== undefined
         ? cleanUniqueField(row[sourceIndex.telefono])
         : null;
+    if (telefono && pipelineConfig.phone_normalize_ec593) {
+      telefono = normalizeEcuadorPhone593(telefono);
+    }
 
     if (email && seenEmails.has(email)) email = null;
     if (telefono && seenPhones.has(telefono)) telefono = null;
@@ -630,7 +676,7 @@ function splitRowsTransportistas(rows, pipelineConfig, existingKeys, now) {
       const idx = sourceIndex[mapping.source];
       let value = idx !== undefined ? row[idx] : null;
       if (mapping.target === "email") value = email;
-      if (mapping.target === "telefono") value = telefono;
+      if (mapping.target === "telefono" || mapping.target === "phone") value = telefono;
       record[mapping.target] = value;
     }
     if (pipelineConfig.defaults) {
@@ -639,7 +685,13 @@ function splitRowsTransportistas(rows, pipelineConfig, existingKeys, now) {
     if (pipelineConfig.id_strategy?.type === "uuid5_codigo_transportista") {
       record[pipelineConfig.id_strategy.column] = generateTransportistaId(codigo);
     }
-    record._ingested_at = now;
+    if (pipelineConfig.include_ingested_at !== false) {
+      const tsCol = pipelineConfig.sync_timestamp_column || "_ingested_at";
+      record[tsCol] = now;
+    }
+    if (!record.created_at) {
+      record.created_at = now;
+    }
 
     allRows.push(record);
     const ck = record[conflictKey] != null ? String(record[conflictKey]) : "";
@@ -813,6 +865,83 @@ async function fetchDatabricks(pipelineConfig) {
   }
   logInfo(`Fetched ${rows.length} row(s) from Databricks.`);
   return rows;
+}
+
+/**
+ * Read source rows via PostgREST (same shape as Databricks data_array: array of arrays).
+ * Requires `source_supabase_profile` (default|secondary|tertiary) and `source_table` (view/table name).
+ * Optional `source_supabase_accept_profile` (e.g. "api") for non-public schemas.
+ */
+async function fetchSupabaseSourceRows(pipelineConfig) {
+  const readProfile = pipelineConfig.source_supabase_profile;
+  if (!readProfile || typeof readProfile !== "string") {
+    throw new Error(
+      "source_kind=supabase requires source_supabase_profile (default | secondary | tertiary)"
+    );
+  }
+  const { baseUrl, serviceKey } = resolveSupabaseByProfile(readProfile);
+  const sb = makeSupabaseClient(baseUrl, serviceKey);
+  const table = String(pipelineConfig.source_table || "").trim();
+  if (!table) {
+    throw new Error("source_table is required for Supabase source");
+  }
+  const cols = sourceColumnsList(pipelineConfig);
+  if (!cols.length) {
+    throw new Error("column_mapping must list at least one source column");
+  }
+
+  const acceptProfile = pipelineConfig.source_supabase_accept_profile;
+  const profileHeaders = {};
+  if (typeof acceptProfile === "string" && acceptProfile.trim()) {
+    const ap = acceptProfile.trim();
+    profileHeaders["Accept-Profile"] = ap;
+    profileHeaders["Content-Profile"] = ap;
+  }
+
+  const rawPage = parseInt(String(pipelineConfig.supabase_source_page_size || "1000"), 10);
+  const pageSize = Math.min(Math.max(Number.isFinite(rawPage) ? rawPage : 1000, 1), 5000);
+  const orderCol = cols[0];
+  const orderParam =
+    typeof pipelineConfig.supabase_source_order === "string"
+      ? pipelineConfig.supabase_source_order.trim()
+      : "";
+  const order = orderParam || `${orderCol}.asc`;
+  const out = [];
+  let offset = 0;
+
+  logInfo(`Querying Supabase source`, { table, profile: readProfile, columns: cols, order });
+
+  while (true) {
+    const res = await sb.get(
+      table,
+      {
+        select: cols.join(","),
+        order,
+      },
+      {
+        ...profileHeaders,
+        Range: `${offset}-${offset + pageSize - 1}`,
+      }
+    );
+    if (![200, 206].includes(res.status)) {
+      const txt = await res.text();
+      throw new Error(`Supabase source read failed (${res.status}): ${txt.slice(0, 400)}`);
+    }
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      break;
+    }
+    for (const obj of data) {
+      out.push(cols.map((c) => (Object.prototype.hasOwnProperty.call(obj, c) ? obj[c] : null)));
+    }
+    if (data.length < pageSize) {
+      break;
+    }
+    offset += pageSize;
+  }
+
+  logInfo(`Fetched ${out.length} row(s) from Supabase.`, { table, profile: readProfile });
+  return out;
 }
 
 async function getExistingKeys(sb, targetTable, conflictKey) {
@@ -992,7 +1121,13 @@ async function runSyncForPipeline(event) {
   const countBefore = existing.size;
   logInfo(`Found ${countBefore} existing records in Supabase.`, { targetTable, pipelineName });
 
-  let dbxRows = await fetchDatabricks(pipelineConfig);
+  const sourceKind = pipelineConfig.source_kind || "databricks";
+  let dbxRows;
+  if (sourceKind === "supabase") {
+    dbxRows = await fetchSupabaseSourceRows(pipelineConfig);
+  } else {
+    dbxRows = await fetchDatabricks(pipelineConfig);
+  }
   if (!dbxRows.length) {
     return { status: "no_data", inserted: 0, total: countBefore, pipeline_name: pipelineName };
   }
@@ -1000,7 +1135,14 @@ async function runSyncForPipeline(event) {
     dbxRows = deduplicateRows(dbxRows, pipelineConfig);
   }
 
-  let { newRows, allRows } = splitRowsByMode(dbxRows, pipelineConfig, existing, now);
+  let pipelineConfigForSplit = pipelineConfig;
+  if (pipelineConfig.transform_materials_weight_zod) {
+    const materialsCatalog = await fetchSaMaterialsCatalog(sb);
+    logInfo("sa_materials catalog loaded for Zod transform", { size: materialsCatalog.size });
+    pipelineConfigForSplit = { ...pipelineConfig, _saMaterialsCatalog: materialsCatalog };
+  }
+
+  let { newRows, allRows } = splitRowsByMode(dbxRows, pipelineConfigForSplit, existing, now);
   if (pipelineConfig.dedupe_records_by) {
     const keys = pipelineConfig.dedupe_records_by;
     const strat = pipelineConfig.dedupe_records_strategy === "first" ? "first" : "last";

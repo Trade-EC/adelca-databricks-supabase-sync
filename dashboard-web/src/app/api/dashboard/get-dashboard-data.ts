@@ -3,10 +3,15 @@ import {
   fetchRecentLambdaLogStreams,
 } from "@/lib/aws-signed-api";
 import { appConfig } from "@/lib/config";
-import { readPipelines } from "@/lib/pipelines";
-import { countSourceRows, maxSourceAuditCreatedAt } from "@/lib/databricks";
-import { supabaseCount, supabaseDatamartWatermark, supabaseLastWatermark } from "@/lib/supabase";
-import { resolveLastRun } from "@/lib/last-run";
+import { formatMappingSummary, readPipelines } from "@/lib/pipelines";
+import { fetchCheckpointFromS3, s3CheckpointToLastRun } from "@/lib/s3-checkpoint";
+import {
+  resolveSupabaseProfileFromPipeline,
+  supabaseCount,
+  supabaseDatamartWatermark,
+  supabaseLastRun,
+  supabaseLastWatermark,
+} from "@/lib/supabase";
 
 /** Separated into its own chunk so `route.ts` can dynamic-import and always return JSON on load failure (Vercel HTML 500 otherwise). */
 export async function buildDashboardPayload() {
@@ -46,41 +51,64 @@ export async function buildDashboardPayload() {
 
   const rows = await Promise.all(
     pipelines.map(async (p) => {
-      const profile = p.supabase_profile === "secondary" ? "secondary" : "default";
-      const dbProfile = p.databricks_profile === "qas" ? "qas" : "prd";
+      const profile = resolveSupabaseProfileFromPipeline(p.supabase_profile);
       const datamartTs = p.datamart_timestamp_column || "_ingested_at";
       try {
-        const [sourceCount, destCount, watermark, datamartWatermark, sourceAuditCreatedAt, lastRun] =
-          await Promise.all([
-            countSourceRows(p.source_table, dbProfile),
-            supabaseCount(p.target_table, profile),
-            supabaseLastWatermark(p.pipeline_name, profile),
-            supabaseDatamartWatermark(p.target_table, profile, datamartTs),
-            maxSourceAuditCreatedAt(p.source_table, dbProfile),
-            resolveLastRun(p.pipeline_name, profile),
-          ]);
+        const checkpoint = await fetchCheckpointFromS3(p.pipeline_name);
+        const fromDb = await supabaseLastRun(p.pipeline_name, profile);
+        const lastRun = fromDb
+          ? { ...fromDb, run_source: "supabase" as const }
+          : checkpoint
+            ? s3CheckpointToLastRun(checkpoint)
+            : null;
 
-        const destN = destCount ?? 0;
+        const sourceCount =
+          checkpoint?.source_count ??
+          (typeof checkpoint?.total === "number" ? checkpoint.total : null);
+        let destCount =
+          checkpoint?.dest_count_after ??
+          (typeof checkpoint?.total === "number" ? checkpoint.total : null);
+
+        if (destCount == null) {
+          destCount = await supabaseCount(p.target_table, profile);
+        }
+
+        const pending =
+          sourceCount != null && destCount != null
+            ? Math.max(0, sourceCount - destCount)
+            : typeof checkpoint?.skipped === "number"
+              ? checkpoint.skipped
+              : null;
+
+        const [watermark, datamartWatermark] = await Promise.all([
+          supabaseLastWatermark(p.pipeline_name, profile),
+          supabaseDatamartWatermark(p.target_table, profile, datamartTs),
+        ]);
+
         return {
           ...p,
+          mapping_summary: formatMappingSummary(p),
           source_count: sourceCount,
           dest_count: destCount,
-          pending: destCount == null ? null : Math.max(0, sourceCount - destN),
+          pending,
           watermark,
           datamart_watermark: datamartWatermark,
-          source_audit_created_at_max: sourceAuditCreatedAt,
+          source_sync_at: checkpoint?.sync_timestamp ?? lastRun?.finished_at ?? null,
+          metrics_source: checkpoint ? ("s3" as const) : ("supabase" as const),
           last_run: lastRun,
           pipeline_error: null,
         };
       } catch (error) {
         return {
           ...p,
-          source_count: 0,
+          mapping_summary: formatMappingSummary(p),
+          source_count: null,
           dest_count: null,
           pending: null,
           watermark: null,
           datamart_watermark: null,
-          source_audit_created_at_max: null,
+          source_sync_at: null,
+          metrics_source: null,
           last_run: null,
           pipeline_error: error instanceof Error ? error.message : "Pipeline metrics error",
         };

@@ -7,7 +7,7 @@ loadDotenv({
 
 /**
  * Dashboard must never throw during module init: Vercel may only set SUPABASE_SECONDARY_*,
- * omit PRD defaults, or lack AWS_* — failures belong in route handlers / per-pipeline.
+ * omit PRD defaults, SUPABASE_TERTIARY_* for tertiary-only setups, or lack AWS_* — failures belong in route handlers / per-pipeline.
  */
 export const appConfig = {
   region: process.env.AWS_REGION || "us-east-1",
@@ -20,6 +20,9 @@ export const appConfig = {
   /** Optional: second Supabase project for pipelines with supabase_profile=secondary */
   supabaseSecondaryUrl: process.env.SUPABASE_SECONDARY_URL?.replace(/\/$/, "") || "",
   supabaseSecondaryKey: process.env.SUPABASE_SECONDARY_SERVICE_ROLE_KEY || "",
+  /** Optional: third Supabase project for pipelines with supabase_profile=tertiary */
+  supabaseTertiaryUrl: process.env.SUPABASE_TERTIARY_URL?.replace(/\/$/, "") || "",
+  supabaseTertiaryKey: process.env.SUPABASE_TERTIARY_SERVICE_ROLE_KEY || "",
   databricksHost: process.env.DATABRICKS_PRD_HOST || "",
   databricksHttpPath: process.env.DATABRICKS_PRD_HTTP_PATH || "",
   databricksClientId: process.env.DATABRICKS_PRD_CLIENT_ID || "",

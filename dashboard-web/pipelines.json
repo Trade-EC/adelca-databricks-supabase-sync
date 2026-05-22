@@ -1,47 +1,56 @@
 {
   "transportistas": {
     "pipeline_name": "transportistas",
+    "domain": "transportistas",
     "databricks_profile": "prd",
-    "supabase_profile": "default",
+    "supabase_profile": "secondary",
     "row_mode": "transportistas",
     "source_table": "prod.gldlogistica.db_trade_dim_app_transportistas",
-    "target_table": "transportistas",
+    "target_table": "fleet_owners",
     "write_mode": "insert_only",
-    "conflict_key": "codigo_transportista",
+    "conflict_key": "unique_code",
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       {
         "source": "codigo_transportista",
-        "target": "codigo_transportista"
+        "target": "unique_code"
       },
       {
         "source": "ruc",
-        "target": "ruc"
+        "target": "tax_id"
       },
       {
         "source": "nombre_transportista",
-        "target": "nombre_transportista"
+        "target": "name"
       },
       {
         "source": "telefono",
-        "target": "telefono"
+        "target": "phone"
       },
       {
         "source": "email",
         "target": "email"
       }
     ],
+    "phone_normalize_ec593": true,
     "defaults": {
-      "estado_transportista": "pendiente"
+      "status": "pendiente",
+      "is_first_login": true,
+      "notifications_enabled": true,
+      "update_form_completed": false
     },
     "id_strategy": {
-      "column": "transportista_id",
+      "column": "id",
       "type": "uuid5_codigo_transportista"
-    }
+    },
+    "include_ingested_at": true,
+    "sync_timestamp_column": "synced_at",
+    "datamart_timestamp_column": "synced_at"
   },
   "vehiculos": {
     "pipeline_name": "vehiculos",
+    "domain": "transportistas",
     "databricks_profile": "qas",
     "supabase_profile": "secondary",
     "row_mode": "generic",
@@ -97,10 +106,11 @@
   },
   "viajes": {
     "pipeline_name": "viajes",
+    "domain": "transportistas",
     "databricks_profile": "qas",
     "supabase_profile": "secondary",
     "row_mode": "generic",
-    "source_table": "qas.gldlogistica.db_trade_fact_transportistas_viajes",
+    "source_table": "qas.gldlogistica.db_trade_fact_transportistas_viajes_update",
     "target_table": "ct_freights",
     "write_mode": "upsert",
     "conflict_key": "id",
@@ -143,7 +153,7 @@
         "target": "driver"
       },
       {
-        "source": "tipo_expedicion_viaje",
+        "source": "texto_condicion_expedicion_viaje",
         "target": "expedition_type"
       },
       {
@@ -161,8 +171,69 @@
     "sync_timestamp_column": "synced_at",
     "datamart_timestamp_column": "synced_at"
   },
+  "conductores": {
+    "pipeline_name": "conductores",
+    "domain": "transportistas",
+    "source_kind": "supabase",
+    "source_supabase_profile": "tertiary",
+    "source_supabase_accept_profile": "api",
+    "supabase_source_order": "visitor_updated_at.desc",
+    "extra_source_columns": [
+      "placa",
+      "visitor_updated_at"
+    ],
+    "supabase_profile": "secondary",
+    "row_mode": "generic",
+    "source_table": "vw_maestro_persona_conductor",
+    "target_table": "drivers",
+    "write_mode": "upsert",
+    "conflict_key": "id",
+    "require_non_null": [
+      "placa"
+    ],
+    "batch_size": 500,
+    "schedule": "cron(0 5 * * ? *)",
+    "column_mapping": [
+      {
+        "source": "full_name",
+        "target": "name"
+      },
+      {
+        "source": "cedula",
+        "target": "national_id"
+      },
+      {
+        "source": "celular",
+        "target": "phone"
+      }
+    ],
+    "phone_normalize_ec593": true,
+    "json_array_from_source": [
+      {
+        "target": "license_plates",
+        "source": "placa"
+      }
+    ],
+    "dedupe_records_by": [
+      "id"
+    ],
+    "dedupe_records_strategy": "last",
+    "id_strategy": {
+      "type": "uuid5_from_source",
+      "column": "id",
+      "source_column": "placa",
+      "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
+    },
+    "null_coalesce": {
+      "name": ""
+    },
+    "include_ingested_at": true,
+    "sync_timestamp_column": "synced_at",
+    "datamart_timestamp_column": "synced_at"
+  },
   "socio_adelca_ferreterias": {
     "pipeline_name": "socio_adelca_ferreterias",
+    "domain": "socio_adelca",
     "databricks_profile": "qas",
     "supabase_profile": "secondary",
     "row_mode": "generic",
@@ -203,6 +274,7 @@
   },
   "socio_adelca_grupos": {
     "pipeline_name": "socio_adelca_grupos",
+    "domain": "socio_adelca",
     "databricks_profile": "qas",
     "supabase_profile": "secondary",
     "row_mode": "generic",
@@ -251,6 +323,7 @@
   },
   "socio_adelca_materiales": {
     "pipeline_name": "socio_adelca_materiales",
+    "domain": "socio_adelca",
     "databricks_profile": "qas",
     "supabase_profile": "secondary",
     "row_mode": "generic",
@@ -289,6 +362,7 @@
   },
   "socio_adelca_facturas_rebate": {
     "pipeline_name": "socio_adelca_facturas_rebate",
+    "domain": "socio_adelca",
     "databricks_profile": "qas",
     "supabase_profile": "secondary",
     "row_mode": "generic",
@@ -330,6 +404,7 @@
       { "source": "processed_at", "target": "processed_at" }
     ],
     "json_parse_targets": ["lines", "materials_weight_totals", "materials_categories_weight_totals"],
+    "transform_materials_weight_zod": true,
     "fill_missing_iso_timestamps": ["created_at"],
     "defaults": {
       "status": "ACTIVE"

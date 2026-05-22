@@ -53,6 +53,15 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: Service role for second Supabase project (optional)
+  SupabaseTertiaryUrl:
+    Type: String
+    Default: ""
+    Description: Third Supabase project URL (optional; pipelines with supabase_profile=tertiary)
+  SupabaseTertiaryServiceRoleKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Secret / service_role key for third Supabase project (optional)
   DbxTable:
     Type: String
     Default: prod.gldlogistica.db_trade_dim_app_transportistas
@@ -93,7 +102,7 @@ Resources:
       FunctionName: patek-philippe
       Handler: handler.lambdaHandler
       CodeUri: lambda_function/
-      Description: Incremental sync transportistas from Databricks PRD to Supabase
+      Description: Incremental sync transportistas from Databricks PRD to Supabase fleet_owners
       Environment:
         Variables:
           DATABRICKS_HOST: !Ref DatabricksHost
@@ -112,6 +121,8 @@ Resources:
           SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
           SUPABASE_SECONDARY_URL: !Ref SupabaseSecondaryUrl
           SUPABASE_SECONDARY_SERVICE_ROLE_KEY: !Ref SupabaseSecondaryServiceRoleKey
+          SUPABASE_TERTIARY_URL: !Ref SupabaseTertiaryUrl
+          SUPABASE_TERTIARY_SERVICE_ROLE_KEY: !Ref SupabaseTertiaryServiceRoleKey
           DBX_TABLE: !Ref DbxTable
           BATCH_SIZE: !Ref BatchSize
           ETL_LOGS_BUCKET: !Ref EtlLogsBucket
@@ -140,9 +151,16 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Viajes (db_trade_fact_transportistas_viajes → ct_freights, incl. driver/route/expedition_type) — daily
+            Description: Viajes (db_trade_fact_transportistas_viajes_update → ct_freights) — daily
             Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"viajes"}'
+        ScheduledConductoresSync:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Conductores (tertiary vw_maestro_persona_conductor → secondary drivers) — daily
+            Enabled: !If [ScheduledPipelinesOn, true, false]
+            Input: '{"pipeline_name":"conductores"}'
         ScheduledFerreteriasSync:
           Type: Schedule
           Properties:

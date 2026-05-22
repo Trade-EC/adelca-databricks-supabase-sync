@@ -1,16 +1,50 @@
 {
   "lambda_function_name": "patek-philippe",
   "pipelines_config": "lambda_function/pipelines.json",
+  "domains": {
+    "transportistas": {
+      "label": "Líneas transportistas",
+      "supabase_profile": "secondary",
+      "pipelines": ["transportistas", "vehiculos", "viajes", "conductores"],
+      "tables": {
+        "transportistas": "fleet_owners",
+        "vehiculos": "vehicles",
+        "viajes": "ct_freights",
+        "conductores": "drivers"
+      }
+    },
+    "socio_adelca": {
+      "label": "Socio comercial Adelca (rebates)",
+      "supabase_profile": "secondary",
+      "pipelines": [
+        "socio_adelca_grupos",
+        "socio_adelca_ferreterias",
+        "socio_adelca_materiales",
+        "socio_adelca_facturas_rebate"
+      ],
+      "tables": {
+        "socio_adelca_grupos": "sa_hardware_store_groups",
+        "socio_adelca_ferreterias": "sa_hardware_stores",
+        "socio_adelca_materiales": "sa_materials",
+        "socio_adelca_facturas_rebate": "sa_invoices"
+      }
+    }
+  },
   "pipelines": {
     "transportistas": {
-      "invoke": { "pipeline_name": "transportistas" }
+      "invoke": { "pipeline_name": "transportistas" },
+      "notes": "Databricks dim_app_transportistas → secondary fleet_owners; insert_only por unique_code; id uuid5(codigo_transportista)."
     },
     "vehiculos": {
       "invoke": { "pipeline_name": "vehiculos" }
     },
     "viajes": {
       "invoke": { "pipeline_name": "viajes" },
-      "notes": "fact viajes → ct_freights; upsert por id (refresca driver, route, expedition_type en re-sync)"
+      "notes": "fact viajes_update → ct_freights; upsert por id (uuid5 codigo_viaje)"
+    },
+    "conductores": {
+      "invoke": { "pipeline_name": "conductores" },
+      "notes": "Origen: api.vw_maestro_persona_conductor (terciario). Destino: secondary public.drivers (app): id uuid5(placa), upsert por id; name, national_id (cedula), phone, license_plates jsonb [placa], synced_at."
     },
     "socio_adelca_ferreterias": {
       "invoke": { "pipeline_name": "socio_adelca_ferreterias" },
@@ -26,7 +60,7 @@
     },
     "socio_adelca_facturas_rebate": {
       "invoke": { "pipeline_name": "socio_adelca_facturas_rebate" },
-      "notes": "fact_invoices_sa → sa_invoices (secondary); quitar require_non_null_targets store_group_id y null_coalesce store_tax_id cuando OpenAPI ya no marque required; uuid5(sap_id_grupo); alignBatchObjectKeys"
+      "notes": "fact_invoices_sa → sa_invoices (secondary); materials_weight_totals transform Zod (consulta 1); materials_categories_weight_totals sin cambio (consulta 2); ver scripts/sql/supabase_sa_invoices_jsonb_schema.sql"
     }
   }
 }

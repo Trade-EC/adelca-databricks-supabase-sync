@@ -21,7 +21,7 @@ function getConfig() {
     supabaseKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
     dbxTable:
       process.env.DBX_TABLE || "prod.gldlogistica.db_trade_dim_app_transportistas",
-    supabaseTable: process.env.SUPABASE_TABLE || "transportistas",
+    supabaseTable: process.env.SUPABASE_TABLE || "fleet_owners",
     batchSize: parseInt(process.env.FETCH_SIZE || "500", 10),
     lambdaName: process.env.LAMBDA_NAME || "patek-philippe"
   };
