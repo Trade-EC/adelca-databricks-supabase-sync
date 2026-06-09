@@ -9,7 +9,9 @@ const path = require("path");
 const fs = require("fs");
 require("dotenv").config({ path: path.join(__dirname, "..", "transportistas_sync", ".env") });
 
-const DBX_TABLE = "qas.gldlogistica.db_trade_fact_transportistas_viajes";
+const DBX_TABLE =
+  process.env.VIAJES_DBX_TABLE || "prod.gldlogistica.db_trade_fact_transportistas_viajes";
+const DBX_PROFILE = (process.env.VIAJES_DBX_PROFILE || "prd").toLowerCase();
 const WAIT = "50s";
 
 function normDriver(v) {
@@ -18,12 +20,43 @@ function normDriver(v) {
   return s === "" ? null : s;
 }
 
+async function databricksOAuthToken(host) {
+  const id = process.env.DATABRICKS_PRD_CLIENT_ID;
+  const sec = process.env.DATABRICKS_PRD_CLIENT_SECRET;
+  if (!host || !id || !sec) {
+    throw new Error("Faltan DATABRICKS_PRD_HOST, DATABRICKS_PRD_CLIENT_ID, DATABRICKS_PRD_CLIENT_SECRET");
+  }
+  const auth = Buffer.from(`${id}:${sec}`).toString("base64");
+  const res = await fetch(`https://${host}/oidc/v1/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${auth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ grant_type: "client_credentials", scope: "all-apis" }),
+  });
+  if (!res.ok) throw new Error(`Databricks OAuth ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  return (await res.json()).access_token;
+}
+
 async function databricksQueryAll(statement) {
-  const host = process.env.DATABRICKS_QAS_HOST;
-  const httpPath = process.env.DATABRICKS_QAS_HTTP_PATH;
-  const token = process.env.DATABRICKS_QAS_TOKEN;
-  if (!host || !httpPath || !token) {
-    throw new Error("Faltan DATABRICKS_QAS_HOST, DATABRICKS_QAS_HTTP_PATH, DATABRICKS_QAS_TOKEN");
+  let host;
+  let httpPath;
+  let token;
+  if (DBX_PROFILE === "qas") {
+    host = process.env.DATABRICKS_QAS_HOST;
+    httpPath = process.env.DATABRICKS_QAS_HTTP_PATH;
+    token = process.env.DATABRICKS_QAS_TOKEN;
+    if (!host || !httpPath || !token) {
+      throw new Error("Faltan DATABRICKS_QAS_HOST, DATABRICKS_QAS_HTTP_PATH, DATABRICKS_QAS_TOKEN");
+    }
+  } else {
+    host = process.env.DATABRICKS_PRD_HOST;
+    httpPath = process.env.DATABRICKS_PRD_HTTP_PATH;
+    if (!host || !httpPath) {
+      throw new Error("Faltan DATABRICKS_PRD_HOST, DATABRICKS_PRD_HTTP_PATH");
+    }
+    token = await databricksOAuthToken(host);
   }
   const warehouseId = httpPath.split("/").pop();
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };

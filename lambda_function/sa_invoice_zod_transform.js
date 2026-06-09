@@ -50,14 +50,25 @@ function isLegacyMaterialsWeightItem(item) {
   );
 }
 
+function materialsWeightField(record) {
+  if (Object.prototype.hasOwnProperty.call(record, "materials_weight_totals")) {
+    return "materials_weight_totals";
+  }
+  if (Object.prototype.hasOwnProperty.call(record, "materials_totals")) {
+    return "materials_totals";
+  }
+  return "materials_weight_totals";
+}
+
 /**
  * @param {Record<string, unknown>} record - sa_invoices row after json_parse
  * @param {Map<string, string>} materialsCatalog - material code → cashback_category (DB)
  */
 function transformMaterialsWeightTotals(record, materialsCatalog) {
+  const field = materialsWeightField(record);
   const lines = record.lines;
   const fromLines = aggregateLinesByMaterial(Array.isArray(lines) ? lines : []);
-  const source = Array.isArray(record.materials_weight_totals) ? record.materials_weight_totals : [];
+  const source = Array.isArray(record[field]) ? record[field] : [];
   const out = [];
 
   for (const item of source) {
@@ -97,7 +108,7 @@ function transformMaterialsWeightTotals(record, materialsCatalog) {
     });
   }
 
-  record.materials_weight_totals = out;
+  record[field] = out;
   return record;
 }
 
@@ -111,6 +122,10 @@ async function fetchSaMaterialsCatalog(sb, pageSize = 1000) {
       offset: String(offset),
     });
     if (res.status !== 200) {
+      if (res.status === 404) {
+        console.warn("fetchSaMaterialsCatalog: sa_materials not found; Zod transform will skip uncategorized materials");
+        return catalog;
+      }
       throw new Error(`Cannot load sa_materials for Zod transform: ${res.status}`);
     }
     const batch = await res.json();

@@ -23,6 +23,9 @@ export const appConfig = {
   /** Optional: third Supabase project for pipelines with supabase_profile=tertiary */
   supabaseTertiaryUrl: process.env.SUPABASE_TERTIARY_URL?.replace(/\/$/, "") || "",
   supabaseTertiaryKey: process.env.SUPABASE_TERTIARY_SERVICE_ROLE_KEY || "",
+  /** Base Socio — producción socio Adelca + cartera (pipelines con supabase_profile=base_socio) */
+  supabaseBaseSocioUrl: process.env.SUPABASE_BASE_SOCIO_URL?.replace(/\/$/, "") || "",
+  supabaseBaseSocioKey: process.env.SUPABASE_BASE_SOCIO_SERVICE_ROLE_KEY || "",
   databricksHost: process.env.DATABRICKS_PRD_HOST || "",
   databricksHttpPath: process.env.DATABRICKS_PRD_HTTP_PATH || "",
   databricksClientId: process.env.DATABRICKS_PRD_CLIENT_ID || "",

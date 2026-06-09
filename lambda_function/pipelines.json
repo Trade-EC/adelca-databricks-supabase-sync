@@ -51,16 +51,22 @@
   "vehiculos": {
     "pipeline_name": "vehiculos",
     "domain": "transportistas",
-    "databricks_profile": "qas",
-    "supabase_profile": "secondary",
+    "databricks_profile": "prd",
+    "supabase_profile": "default",
     "row_mode": "generic",
-    "source_table": "qas.gldlogistica.db_trade_dim_vehiculos",
+    "source_table": "prod.gldlogistica.db_trade_dim_vehiculos",
     "target_table": "vehicles",
     "write_mode": "insert_only",
     "conflict_key": "license_plate",
     "require_non_null": [
       "placa"
     ],
+    "incremental_new_keys": {
+      "source_column": "placa",
+      "baseline_s3_key": "etl-success/vehiculos/prd_baseline_placas.json",
+      "cutover_date": "2026-06-09",
+      "normalize_plate": true
+    },
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
@@ -101,22 +107,26 @@
       "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
     },
     "include_ingested_at": true,
-    "sync_timestamp_column": "synced_at",
-    "datamart_timestamp_column": "synced_at"
+    "sync_timestamp_column": "synced_at"
   },
   "viajes": {
     "pipeline_name": "viajes",
     "domain": "transportistas",
-    "databricks_profile": "qas",
-    "supabase_profile": "secondary",
+    "databricks_profile": "prd",
+    "supabase_profile": "default",
     "row_mode": "generic",
-    "source_table": "qas.gldlogistica.db_trade_fact_transportistas_viajes_update",
+    "source_table": "prod.gldlogistica.db_trade_fact_transportistas_viajes",
     "target_table": "ct_freights",
-    "write_mode": "upsert",
+    "write_mode": "insert_only",
     "conflict_key": "id",
     "require_non_null": [
       "codigo_viaje"
     ],
+    "incremental_new_keys": {
+      "source_column": "codigo_viaje",
+      "baseline_s3_key": "etl-success/viajes/prd_baseline_codigo_viaje.json",
+      "cutover_date": "2026-06-09"
+    },
     "batch_size": 500,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
@@ -150,7 +160,7 @@
       },
       {
         "source": "nombre_conductor",
-        "target": "driver"
+        "target": "driver_name"
       },
       {
         "source": "texto_condicion_expedicion_viaje",
@@ -179,6 +189,7 @@
     "source_supabase_accept_profile": "api",
     "supabase_source_order": "visitor_updated_at.desc",
     "extra_source_columns": [
+      "person_id",
       "placa",
       "visitor_updated_at"
     ],
@@ -189,6 +200,7 @@
     "write_mode": "upsert",
     "conflict_key": "id",
     "require_non_null": [
+      "person_id",
       "placa"
     ],
     "batch_size": 500,
@@ -208,21 +220,21 @@
       }
     ],
     "phone_normalize_ec593": true,
-    "json_array_from_source": [
-      {
-        "target": "license_plates",
-        "source": "placa"
-      }
-    ],
-    "dedupe_records_by": [
-      "id"
-    ],
-    "dedupe_records_strategy": "last",
+    "aggregate_conductor_plates": {
+      "plate_source": "placa",
+      "timestamp_source": "visitor_updated_at",
+      "license_plates_target": "license_plates",
+      "current_plate_target": "current_license_plate",
+      "group_by_national_id": "national_id",
+      "merge_existing": true,
+      "dedupe_destination_by_national_id": true,
+      "normalize_license_plates_ec": true
+    },
+    "normalize_license_plates_ec": true,
     "id_strategy": {
-      "type": "uuid5_from_source",
+      "type": "direct_from_source",
       "column": "id",
-      "source_column": "placa",
-      "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
+      "source_column": "person_id"
     },
     "null_coalesce": {
       "name": ""
@@ -253,7 +265,7 @@
       }
     ],
     "fill_missing_iso_timestamps": ["created_at", "updated_at"],
-    "batch_size": 500,
+    "batch_size": 200,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       { "source": "ruc", "target": "tax_id" },
@@ -286,7 +298,7 @@
     "require_non_null": ["id_grupo", "nombre_grupo"],
     "extra_source_columns": ["id_grupo"],
     "fill_missing_iso_timestamps": ["created_at", "updated_at"],
-    "batch_size": 500,
+    "batch_size": 200,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       { "source": "nombre_grupo", "target": "name" },
@@ -299,7 +311,7 @@
         "properties": [{ "key": "ciudad", "source_column": "ciudad" }]
       },
       {
-        "target": "data_representative",
+        "target": "manager",
         "wrap_in_array": false,
         "root_object_from_columns": {
           "code": "codigo_asesor_comercial",
@@ -334,7 +346,7 @@
     "require_non_null": [
       "codigo_material"
     ],
-    "batch_size": 500,
+    "batch_size": 200,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       {
@@ -381,14 +393,14 @@
         "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
       }
     ],
-    "batch_size": 500,
+    "batch_size": 200,
     "schedule": "cron(0 5 * * ? *)",
     "column_mapping": [
       { "source": "id", "target": "id" },
       { "source": "invoice_number", "target": "invoice_number" },
+      { "source": "sap_clase_factura", "target": "sap_clase_factura" },
       { "source": "lines", "target": "lines" },
-      { "source": "materials_weight_totals", "target": "materials_weight_totals" },
-      { "source": "materials_categories_weight_totals", "target": "materials_categories_weight_totals" },
+      { "source": "materials_weight_totals", "target": "materials_totals" },
       { "source": "issued_date", "target": "issued_date" },
       { "source": "subtotal", "target": "subtotal" },
       { "source": "taxes", "target": "taxes" },
@@ -403,7 +415,7 @@
       { "source": "store_tax_id", "target": "store_tax_id" },
       { "source": "processed_at", "target": "processed_at" }
     ],
-    "json_parse_targets": ["lines", "materials_weight_totals", "materials_categories_weight_totals"],
+    "json_parse_targets": ["lines", "materials_totals"],
     "transform_materials_weight_zod": true,
     "fill_missing_iso_timestamps": ["created_at"],
     "defaults": {
@@ -411,8 +423,7 @@
     },
     "null_coalesce": {
       "lines": [],
-      "materials_weight_totals": [],
-      "materials_categories_weight_totals": [],
+      "materials_totals": [],
       "subtotal": 0,
       "taxes": 0,
       "discounts": 0,
@@ -421,6 +432,88 @@
       "status": "ACTIVE",
       "reference": "",
       "store_tax_id": "1391786735001"
+    },
+    "include_ingested_at": false,
+    "datamart_timestamp_column": "updated_at"
+  },
+  "cartera": {
+    "pipeline_name": "cartera",
+    "domain": "cartera",
+    "databricks_profile": "qas",
+    "supabase_profile": "base_socio",
+    "row_mode": "generic",
+    "source_table": "qas.aplicaciones.control_cartera",
+    "target_table": "in_debt_at",
+    "write_mode": "upsert",
+    "conflict_key": "id",
+    "require_non_null": [
+      "belnr",
+      "buzei",
+      "gjahr",
+      "referencia",
+      "fecha_snapshot",
+      "fecha_carga_control",
+      "fecha_contabilizacion",
+      "dias_neto",
+      "fecha_vencimiento",
+      "dias_vencido",
+      "estado_vencimiento"
+    ],
+    "require_non_null_targets": [
+      "id",
+      "invoice_number",
+      "cutoff_date",
+      "upload_date",
+      "accounting_year",
+      "posting_date",
+      "term_days",
+      "due_date",
+      "status",
+      "days_overdue",
+      "amount_usd"
+    ],
+    "extra_source_columns": [
+      "belnr",
+      "buzei",
+      "gjahr"
+    ],
+    "batch_size": 200,
+    "schedule": "cron(0 5 * * ? *)",
+    "column_mapping": [
+      { "source": "referencia", "target": "invoice_number" },
+      { "source": "kunnr", "target": "customer_code" },
+      { "source": "nombre_cliente", "target": "customer_name" },
+      { "source": "fecha_snapshot", "target": "cutoff_date" },
+      { "source": "fecha_carga_control", "target": "upload_date" },
+      { "source": "gjahr", "target": "accounting_year" },
+      { "source": "fecha_contabilizacion", "target": "posting_date" },
+      { "source": "dias_neto", "target": "term_days" },
+      { "source": "fecha_vencimiento", "target": "due_date" },
+      { "source": "estado_vencimiento", "target": "status" },
+      { "source": "dias_vencido", "target": "days_overdue" },
+      { "source": "importe_moneda_doc", "target": "amount_usd" }
+    ],
+    "id_strategy": {
+      "type": "uuid5_from_concat",
+      "column": "id",
+      "source_columns": [
+        "belnr",
+        "buzei",
+        "gjahr"
+      ],
+      "separator": "|",
+      "namespace": "b8f9e3a1-7c2d-4f5e-9a1b-3c4d5e6f7a8b"
+    },
+    "fill_missing_iso_timestamps": [
+      "created_at",
+      "updated_at"
+    ],
+    "null_coalesce": {
+      "amount_usd": 0,
+      "status": "",
+      "days_overdue": 0,
+      "term_days": 0,
+      "customer_name": ""
     },
     "include_ingested_at": false,
     "datamart_timestamp_column": "updated_at"

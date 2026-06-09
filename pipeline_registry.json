@@ -15,7 +15,7 @@
     },
     "socio_adelca": {
       "label": "Socio comercial Adelca (rebates)",
-      "supabase_profile": "secondary",
+      "supabase_profile": "base_socio",
       "pipelines": [
         "socio_adelca_grupos",
         "socio_adelca_ferreterias",
@@ -28,6 +28,30 @@
         "socio_adelca_materiales": "sa_materials",
         "socio_adelca_facturas_rebate": "sa_invoices"
       }
+    },
+    "cartera": {
+      "label": "Control cartera (SAP)",
+      "supabase_profile": "base_socio",
+      "pipelines": ["cartera"],
+      "tables": {
+        "cartera": "in_debt_at"
+      }
+    }
+  },
+  "domain_batches": {
+    "base_socio": {
+      "config_file": "lambda_function/domain_batches.json",
+      "label": "Socio Adelca + cartera → Base Socio (producción)",
+      "supabase_profile": "base_socio",
+      "invoke": { "domain_batch": "base_socio" },
+      "schedule": "cron(0 5 * * ? *)",
+      "sequence": [
+        "socio_adelca_grupos",
+        "socio_adelca_ferreterias",
+        "socio_adelca_facturas_rebate",
+        "cartera"
+      ],
+      "notes": "Secuencial en Lambda (4 pasos; socio_adelca_materiales excluido hasta crear sa_materials). stop_on_failure=true; logs en S3 etl-success/base_socio/batch/latest.json. Prueba tabla a tabla: {\"pipeline_name\":\"socio_adelca_grupos\"}."
     }
   },
   "pipelines": {
@@ -36,31 +60,36 @@
       "notes": "Databricks dim_app_transportistas → secondary fleet_owners; insert_only por unique_code; id uuid5(codigo_transportista)."
     },
     "vehiculos": {
-      "invoke": { "pipeline_name": "vehiculos" }
+      "invoke": { "pipeline_name": "vehiculos" },
+      "notes": "PRD prod.gldlogistica.db_trade_dim_vehiculos → default vehicles (rqlzsdziohmqanalmgyx); insert_only license_plate; incremental_new_keys S3 baseline corte 2026-06-09; bootstrap: node scripts/bootstrapVehiculosBaseline.js --upload; invoke: bash scripts/run-vehiculos-pipeline.sh"
     },
     "viajes": {
       "invoke": { "pipeline_name": "viajes" },
-      "notes": "fact viajes_update → ct_freights; upsert por id (uuid5 codigo_viaje)"
+      "notes": "PRD prod.gldlogistica.db_trade_fact_transportistas_viajes → ct_freights (Supabase default); insert_only id uuid5(codigo_viaje); carga histórica 2026-06-09; incremental_new_keys S3 baseline; bootstrap: node scripts/bootstrapViajesBaseline.js --upload; invoke: bash scripts/run-viajes-pipeline.sh"
     },
     "conductores": {
       "invoke": { "pipeline_name": "conductores" },
-      "notes": "Origen: api.vw_maestro_persona_conductor (terciario). Destino: secondary public.drivers (app): id uuid5(placa), upsert por id; name, national_id (cedula), phone, license_plates jsonb [placa], synced_at."
+      "notes": "Origen: api.vw_maestro_persona_conductor (terciario). Destino: secondary public.drivers: id = person_id ZK; national_id desde cedula; placas acumuladas por national_id cuando hay cedula (misma cédula + placas distintas → 1 fila); sin cedula agrupa por person_id; dedupe destino por national_id."
     },
     "socio_adelca_ferreterias": {
       "invoke": { "pipeline_name": "socio_adelca_ferreterias" },
-      "notes": "dim_ferreterias_mtz → sa_hardware_stores (secondary); id = uuid5(codigo_cliente); store_group_id = uuid5(id_grupo); dedupe_records_by tax_id (UNIQUE tax_id; last wins; claves normalizan ceros a la izquierda)"
+      "notes": "dim_ferreterias_mtz → sa_hardware_stores (base_socio PRD); id = uuid5(codigo_cliente); store_group_id = uuid5(id_grupo); dedupe_records_by tax_id (UNIQUE tax_id; last wins; claves normalizan ceros a la izquierda)"
     },
     "socio_adelca_grupos": {
       "invoke": { "pipeline_name": "socio_adelca_grupos" },
-      "notes": "dim_grupos_ferreteros_mtz → sa_hardware_store_groups; addresses[{ciudad}]; data_representative{code,name,phone,email} desde MTZ"
+      "notes": "dim_grupos_ferreteros_mtz → sa_hardware_store_groups (base_socio); addresses[{ciudad}]; data_representative{code,name,phone,email} desde MTZ"
     },
     "socio_adelca_materiales": {
       "invoke": { "pipeline_name": "socio_adelca_materiales" },
-      "notes": "dim_materiales_rebates_slv → sa_materials (secondary); id = uuid5(codigo_material); full upsert"
+      "notes": "dim_materiales_rebates_slv → sa_materials (base_socio); id = uuid5(codigo_material); full upsert"
     },
     "socio_adelca_facturas_rebate": {
       "invoke": { "pipeline_name": "socio_adelca_facturas_rebate" },
-      "notes": "fact_invoices_sa → sa_invoices (secondary); materials_weight_totals transform Zod (consulta 1); materials_categories_weight_totals sin cambio (consulta 2); ver scripts/sql/supabase_sa_invoices_jsonb_schema.sql"
+      "notes": "fact_invoices_sa → sa_invoices (base_socio); materials_weight_totals transform Zod (consulta 1); materials_categories_weight_totals sin cambio (consulta 2); ver scripts/sql/supabase_sa_invoices_jsonb_schema.sql"
+    },
+    "cartera": {
+      "invoke": { "pipeline_name": "cartera" },
+      "notes": "control_cartera → in_debt_at (base_socio); referencia→invoice_number; kunnr→customer_code; nombre_cliente→customer_name; id uuid5(belnr|buzei|gjahr)"
     }
   }
 }

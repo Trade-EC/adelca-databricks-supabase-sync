@@ -27,7 +27,7 @@ type PipelineRow = {
   schedule: string;
   mapping_summary?: string;
   databricks_profile?: "prd" | "qas";
-  supabase_profile?: "default" | "secondary" | "tertiary";
+  supabase_profile?: "default" | "secondary" | "tertiary" | "base_socio";
   source_count: number | null;
   dest_count: number | null;
   pending: number | null;

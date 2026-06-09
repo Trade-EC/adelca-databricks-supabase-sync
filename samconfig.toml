@@ -15,7 +15,7 @@ confirm_changeset = true
 # Use non-sensitive defaults in git; keep real credentials in samconfig.local.toml (ignored)
 # Deploy with local creds: sam deploy --config-file samconfig.local.toml --no-confirm-changeset
 # ScheduleExpression must be quoted for SAM: ScheduleExpression="cron(...)" (see AWS SAM deploy docs)
-parameter_overrides = "DatabricksHost=CHANGEME DatabricksHttpPath=/sql/1.0/warehouses/CHANGEME DatabricksClientId=CHANGEME DatabricksClientSecret=CHANGEME DatabricksQasHost=CHANGEME DatabricksQasHttpPath=/sql/1.0/warehouses/CHANGEME DatabricksQasToken=CHANGEME SupabaseUrl=https://CHANGEME.supabase.co SupabaseServiceRoleKey=CHANGEME SupabaseSecondaryUrl=https://CHANGEME.supabase.co SupabaseSecondaryServiceRoleKey=CHANGEME SupabaseTertiaryUrl=https://CHANGEME.supabase.co SupabaseTertiaryServiceRoleKey=CHANGEME DbxTable=prod.gldlogistica.db_trade_dim_app_transportistas BatchSize=500 ScheduleExpression=\"cron(0 5 * * ? *)\""
+parameter_overrides = "DatabricksHost=CHANGEME DatabricksHttpPath=/sql/1.0/warehouses/CHANGEME DatabricksClientId=CHANGEME DatabricksClientSecret=CHANGEME DatabricksQasHost=CHANGEME DatabricksQasHttpPath=/sql/1.0/warehouses/CHANGEME DatabricksQasToken=CHANGEME SupabaseUrl=https://CHANGEME.supabase.co SupabaseServiceRoleKey=CHANGEME SupabaseSecondaryUrl=https://CHANGEME.supabase.co SupabaseSecondaryServiceRoleKey=CHANGEME SupabaseTertiaryUrl=https://CHANGEME.supabase.co SupabaseTertiaryServiceRoleKey=CHANGEME SupabaseBaseSocioUrl=https://CHANGEME.supabase.co SupabaseBaseSocioServiceRoleKey=CHANGEME DbxTable=prod.gldlogistica.db_trade_dim_app_transportistas BatchSize=500 ScheduleExpression=\"cron(0 5 * * ? *)\""
 
 [default.build.parameters]
 use_container = true

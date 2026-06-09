@@ -62,6 +62,15 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: Secret / service_role key for third Supabase project (optional)
+  SupabaseBaseSocioUrl:
+    Type: String
+    Default: ""
+    Description: Base Socio Supabase project URL (pipelines socio_adelca_* and cartera; supabase_profile=base_socio)
+  SupabaseBaseSocioServiceRoleKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Service role for Base Socio Supabase project (optional)
   DbxTable:
     Type: String
     Default: prod.gldlogistica.db_trade_dim_app_transportistas
@@ -81,9 +90,26 @@ Parameters:
       - "true"
       - "false"
     Description: When false, all EventBridge schedules for the sync Lambda are disabled (invoke still works).
+  ViajesScheduleEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: When false, viajes cron is off (manual invoke only). Other pipeline schedules unchanged.
+  SkipEtlWatermark:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: When true, skip etl_watermarks read/write (use S3 checkpoints; Base Socio has no ETL tables).
 
 Conditions:
   ScheduledPipelinesOn: !Equals [!Ref ScheduledPipelinesEnabled, "true"]
+  ViajesScheduleOn: !And
+    - !Condition ScheduledPipelinesOn
+    - !Equals [!Ref ViajesScheduleEnabled, "true"]
 
 Resources:
   EtlLogsBucket:
@@ -102,6 +128,7 @@ Resources:
       FunctionName: patek-philippe
       Handler: handler.lambdaHandler
       CodeUri: lambda_function/
+      Timeout: 900
       Description: Incremental sync transportistas from Databricks PRD to Supabase fleet_owners
       Environment:
         Variables:
@@ -123,11 +150,13 @@ Resources:
           SUPABASE_SECONDARY_SERVICE_ROLE_KEY: !Ref SupabaseSecondaryServiceRoleKey
           SUPABASE_TERTIARY_URL: !Ref SupabaseTertiaryUrl
           SUPABASE_TERTIARY_SERVICE_ROLE_KEY: !Ref SupabaseTertiaryServiceRoleKey
+          SUPABASE_BASE_SOCIO_URL: !Ref SupabaseBaseSocioUrl
+          SUPABASE_BASE_SOCIO_SERVICE_ROLE_KEY: !Ref SupabaseBaseSocioServiceRoleKey
           DBX_TABLE: !Ref DbxTable
           BATCH_SIZE: !Ref BatchSize
           ETL_LOGS_BUCKET: !Ref EtlLogsBucket
-          # Set to "true" if the Supabase project has no etl_watermarks table (e.g. secondary only).
-          SKIP_ETL_WATERMARK: "false"
+          # Set to "true" if the Supabase project has no etl_watermarks table (e.g. Base Socio).
+          SKIP_ETL_WATERMARK: !Ref SkipEtlWatermark
           # S3 prefix for per-pipeline latest.json success checkpoints (same bucket as ETL_LOGS_BUCKET).
           ETL_SUCCESS_PREFIX: etl-success
           DEFAULT_PIPELINE: transportistas
@@ -151,8 +180,8 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Viajes (db_trade_fact_transportistas_viajes_update → ct_freights) — daily
-            Enabled: !If [ScheduledPipelinesOn, true, false]
+            Description: Viajes (prod.gldlogistica.db_trade_fact_transportistas_viajes → ct_freights) — daily; disabled when ViajesScheduleEnabled=false
+            Enabled: !If [ViajesScheduleOn, true, false]
             Input: '{"pipeline_name":"viajes"}'
         ScheduledConductoresSync:
           Type: Schedule
@@ -161,34 +190,13 @@ Resources:
             Description: Conductores (tertiary vw_maestro_persona_conductor → secondary drivers) — daily
             Enabled: !If [ScheduledPipelinesOn, true, false]
             Input: '{"pipeline_name":"conductores"}'
-        ScheduledFerreteriasSync:
+        ScheduledBaseSocioBatch:
           Type: Schedule
           Properties:
             Schedule: !Ref ScheduleExpression
-            Description: Ferreterias Adelca (dim_ferreterias_mtz → sa_hardware_stores)
+            Description: Base Socio batch (grupos → ferreterias → materiales → facturas → cartera) secuencial
             Enabled: !If [ScheduledPipelinesOn, true, false]
-            Input: '{"pipeline_name":"socio_adelca_ferreterias"}'
-        ScheduledGruposFerreterosSync:
-          Type: Schedule
-          Properties:
-            Schedule: !Ref ScheduleExpression
-            Description: Grupos ferreteros (dim_grupos_ferreteros_mtz → sa_hardware_store_groups)
-            Enabled: !If [ScheduledPipelinesOn, true, false]
-            Input: '{"pipeline_name":"socio_adelca_grupos"}'
-        ScheduledMaterialesSync:
-          Type: Schedule
-          Properties:
-            Schedule: !Ref ScheduleExpression
-            Description: Materiales (dim_materiales_rebates_slv → sa_materials)
-            Enabled: !If [ScheduledPipelinesOn, true, false]
-            Input: '{"pipeline_name":"socio_adelca_materiales"}'
-        ScheduledFacturasRebateSync:
-          Type: Schedule
-          Properties:
-            Schedule: !Ref ScheduleExpression
-            Description: Facturas SA (fact_invoices_sa → sa_invoices)
-            Enabled: !If [ScheduledPipelinesOn, true, false]
-            Input: '{"pipeline_name":"socio_adelca_facturas_rebate"}'
+            Input: '{"domain_batch":"base_socio"}'
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:

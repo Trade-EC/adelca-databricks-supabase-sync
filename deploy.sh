@@ -30,11 +30,13 @@ sam build --use-container
 
 echo ""
 echo "=== Deploying to AWS ==="
+DEPLOY_ARGS=()
 if [[ -n "$GUIDED" ]]; then
-    sam deploy --guided
-else
-    sam deploy
+    DEPLOY_ARGS+=(--guided)
+elif [[ -f samconfig.local.toml ]]; then
+    DEPLOY_ARGS+=(--config-file samconfig.local.toml --no-confirm-changeset)
 fi
+sam deploy "${DEPLOY_ARGS[@]}"
 
 echo ""
 echo "=== Done ==="

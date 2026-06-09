@@ -4,13 +4,34 @@ export type ColumnMappingEntry = { source: string; target: string };
 
 export type IdStrategyConfig =
   | { type: "uuid5_codigo_transportista"; column: string }
-  | { type: "uuid5_from_source"; column: string; source_column: string; namespace: string };
+  | {
+      type: "direct_from_source";
+      column: string;
+      source_column: string;
+      /** When false, copy source value as-is (default: format ZK hex32 → uuid). */
+      normalize_to_uuid?: boolean;
+    }
+  | {
+      type: "uuid5_from_source";
+      column: string;
+      source_column: string;
+      /** Used when `source_column` is blank (e.g. conductores: cedula → person_id). */
+      fallback_source_column?: string;
+      namespace: string;
+    }
+  | {
+      type: "uuid5_from_concat";
+      column: string;
+      source_columns: string[];
+      separator?: string;
+      namespace: string;
+    };
 
-export type PipelineDomain = "transportistas" | "socio_adelca";
+export type PipelineDomain = "transportistas" | "socio_adelca" | "cartera";
 
 export type PipelineConfig = {
   pipeline_name: string;
-  /** Logical product domain on secondary Supabase (see pipeline_registry.json → domains). */
+  /** Logical product domain (see pipeline_registry.json → domains). */
   domain?: PipelineDomain;
   source_table: string;
   /** When `supabase`, rows are read from PostgREST instead of Databricks. Default `databricks`. */
@@ -31,7 +52,7 @@ export type PipelineConfig = {
   column_mapping?: ColumnMappingEntry[];
   /** Skip row early if any listed source field is blank (Lambda generic mode). */
   require_non_null?: string[];
-  supabase_profile?: "default" | "secondary" | "tertiary";
+  supabase_profile?: "default" | "secondary" | "tertiary" | "base_socio";
   databricks_profile?: "prd" | "qas";
   row_mode?: "transportistas" | "generic";
   id_strategy?: IdStrategyConfig;
@@ -61,12 +82,27 @@ export type PipelineConfig = {
   supabase_source_order?: string;
   /** After mapping: set target jsonb array from one source scalar (e.g. placa → license_plates). */
   json_array_from_source?: { source: string; target: string }[];
+  /** Group rows by driver id; accumulate plates in jsonb and set current plate before upsert. */
+  aggregate_conductor_plates?: {
+    plate_source?: string;
+    timestamp_source?: string;
+    license_plates_target?: string;
+    current_plate_target?: string;
+    /** When set, rows with the same target field merge plates (e.g. national_id). */
+    group_by_national_id?: string;
+    merge_existing?: boolean;
+    /** After upsert, delete other rows sharing the same national_id. */
+    dedupe_destination_by_national_id?: boolean;
+    normalize_license_plates_ec?: boolean;
+  };
   /** After json_parse: reshape materials_weight_totals for Zod (socio_adelca_facturas_rebate). */
   transform_materials_weight_zod?: boolean;
   /** After fill_missing_iso: set target_column to uuid5(row[source]) when target empty (generic mode). */
   derived_uuid5?: { source_column: string; target_column: string; namespace?: string }[];
   /** After full record build: skip row if any listed target field is blank (generic mode). */
   require_non_null_targets?: string[];
+  /** Format plate fields as ABC-1234 (letters, hyphen, digits). */
+  normalize_license_plates_ec?: boolean;
   /** After id_strategy: set target jsonb from row columns (generic mode). */
   build_jsonb_object?: BuildJsonbSpec;
   /** Multiple jsonb targets; takes precedence over `build_jsonb_object` when non-empty. */
@@ -98,6 +134,7 @@ const PIPELINE_ORDER: Record<string, number> = {
   socio_adelca_ferreterias: 5,
   socio_adelca_facturas_rebate: 6,
   socio_adelca_materiales: 7,
+  cartera: 8,
 };
 
 /**

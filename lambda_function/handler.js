@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { v5: uuidv5 } = require("uuid");
 const {
   transformMaterialsWeightTotals,
@@ -24,6 +24,8 @@ const SUPABASE_SECONDARY_URL = (process.env.SUPABASE_SECONDARY_URL || "").replac
 const SUPABASE_SECONDARY_KEY = process.env.SUPABASE_SECONDARY_SERVICE_ROLE_KEY || "";
 const SUPABASE_TERTIARY_URL = (process.env.SUPABASE_TERTIARY_URL || "").replace(/\/$/, "");
 const SUPABASE_TERTIARY_KEY = process.env.SUPABASE_TERTIARY_SERVICE_ROLE_KEY || "";
+const SUPABASE_BASE_SOCIO_URL = (process.env.SUPABASE_BASE_SOCIO_URL || "").replace(/\/$/, "");
+const SUPABASE_BASE_SOCIO_KEY = process.env.SUPABASE_BASE_SOCIO_SERVICE_ROLE_KEY || "";
 
 const WATERMARK_TABLE = "etl_watermarks";
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || "500", 10);
@@ -37,6 +39,8 @@ const DBX_POLL_INTERVAL_MS = parseInt(process.env.DBX_POLL_INTERVAL_MS || "3000"
 const DBX_MAX_WAIT_MS = parseInt(process.env.DBX_MAX_WAIT_MS || "240000", 10);
 const PIPELINES_CONFIG_PATH =
   process.env.PIPELINES_CONFIG_PATH || path.join(__dirname, "pipelines.json");
+const DOMAIN_BATCHES_CONFIG_PATH =
+  process.env.DOMAIN_BATCHES_CONFIG_PATH || path.join(__dirname, "domain_batches.json");
 
 const s3Client = new S3Client({});
 
@@ -89,6 +93,14 @@ function resolveSupabaseByProfile(profile) {
     }
     return { baseUrl: SUPABASE_TERTIARY_URL, serviceKey: SUPABASE_TERTIARY_KEY };
   }
+  if (p === "base_socio") {
+    if (!SUPABASE_BASE_SOCIO_URL || !SUPABASE_BASE_SOCIO_KEY) {
+      throw new Error(
+        "supabase_profile=base_socio: set SUPABASE_BASE_SOCIO_URL and SUPABASE_BASE_SOCIO_SERVICE_ROLE_KEY on the Lambda"
+      );
+    }
+    return { baseUrl: SUPABASE_BASE_SOCIO_URL, serviceKey: SUPABASE_BASE_SOCIO_KEY };
+  }
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Default Supabase (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY) not configured");
   }
@@ -133,6 +145,14 @@ function makeSupabaseClient(baseUrl, serviceKey) {
         body: JSON.stringify(rows),
       });
     },
+    deleteWhere(table, filters = {}) {
+      const url = new URL(`${u}/rest/v1/${table}`);
+      Object.entries(filters).forEach(([k, v]) => url.searchParams.set(k, v));
+      return fetch(url, {
+        method: "DELETE",
+        headers: getHeaders("return=minimal"),
+      });
+    },
   };
 }
 
@@ -143,6 +163,30 @@ function generateTransportistaId(codigoTransportista) {
 function loadPipelinesConfig() {
   const raw = fs.readFileSync(PIPELINES_CONFIG_PATH, "utf8");
   return JSON.parse(raw);
+}
+
+function loadDomainBatchesConfig() {
+  if (!fs.existsSync(DOMAIN_BATCHES_CONFIG_PATH)) {
+    return {};
+  }
+  const raw = fs.readFileSync(DOMAIN_BATCHES_CONFIG_PATH, "utf8");
+  return JSON.parse(raw);
+}
+
+function getDomainBatchConfig(batchId) {
+  const id = batchId != null ? String(batchId).trim() : "";
+  if (!id) {
+    throw new Error("domain_batch is required (e.g. base_socio)");
+  }
+  const all = loadDomainBatchesConfig();
+  const cfg = all[id];
+  if (!cfg) {
+    throw new Error(`Unknown domain_batch '${id}'`);
+  }
+  if (!Array.isArray(cfg.sequence) || !cfg.sequence.length) {
+    throw new Error(`domain_batch '${id}' has empty sequence`);
+  }
+  return { batch_id: id, ...cfg };
 }
 
 function getPipelineConfig(event) {
@@ -448,6 +492,239 @@ function normalizeTaxIdClusterKey(raw) {
  * Rows missing any dedupe key stay unmerged (appended as-is).
  * For `tax_id`, the dedupe bucket uses normalized digits (leading zeros stripped) so "011…" and "11…" merge.
  */
+/** Ecuador plate display: letters + hyphen + digits (PWR0840 → PWR-0840). */
+function normalizeLicensePlateEcDisplay(raw) {
+  if (raw == null) return "";
+  const compact = String(raw).trim().toUpperCase().replace(/[\s-]/g, "");
+  if (!compact) return "";
+  const m = compact.match(/^([A-Z]+)([0-9]+)$/);
+  if (m) return `${m[1]}-${m[2]}`;
+  return compact;
+}
+
+function licensePlateDedupeKey(raw) {
+  return normalizeLicensePlateEcDisplay(raw).replace(/-/g, "");
+}
+
+function normalizePlateValue(raw) {
+  return normalizeLicensePlateEcDisplay(raw);
+}
+
+function applyLicensePlateNormalization(record, pipelineConfig) {
+  if (!pipelineConfig?.normalize_license_plates_ec) return;
+  if (Object.prototype.hasOwnProperty.call(record, "license_plate")) {
+    const v = normalizeLicensePlateEcDisplay(record.license_plate);
+    record.license_plate = v || record.license_plate;
+  }
+  if (Object.prototype.hasOwnProperty.call(record, "current_license_plate")) {
+    const v = normalizeLicensePlateEcDisplay(record.current_license_plate);
+    record.current_license_plate = v || null;
+  }
+  if (Array.isArray(record.license_plates)) {
+    record.license_plates = record.license_plates
+      .map((p) => normalizeLicensePlateEcDisplay(p))
+      .filter(Boolean);
+  }
+}
+
+function parseAggTimestamp(value) {
+  if (value == null || value === "") return 0;
+  const t = Date.parse(String(value));
+  return Number.isFinite(t) ? t : 0;
+}
+
+/** Union plate strings case-insensitively, preserving first-seen order. */
+function mergeUniquePlateList(existingArr, incomingPlates) {
+  const seen = new Set();
+  const out = [];
+  const add = (raw) => {
+    const plate = normalizePlateValue(raw);
+    if (!plate) return;
+    const key = licensePlateDedupeKey(raw);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(plate);
+  };
+  for (const p of incomingPlates || []) add(p);
+  for (const p of existingArr || []) add(p);
+  return out;
+}
+
+/** Same logical national_id with/without leading zeros share one aggregation bucket. */
+function normalizeNationalIdClusterKey(raw) {
+  const s = raw != null ? String(raw).trim() : "";
+  if (!s) return "";
+  if (!/^\d+$/.test(s)) return s;
+  const stripped = s.replace(/^0+/, "");
+  return stripped === "" ? "0" : stripped;
+}
+
+function conductorAggregateGroupKey(record, spec) {
+  const nationalField = spec.group_by_national_id;
+  if (typeof nationalField === "string" && nationalField.trim() && !isBlankValue(record[nationalField])) {
+    return `national_id:${normalizeNationalIdClusterKey(record[nationalField])}`;
+  }
+  const id = record.id != null ? String(record.id).trim() : "";
+  return id ? `id:${id}` : "";
+}
+
+function collectExistingPlatesForAggregateGroup(groupKey, winnerId, existingById, existingByNationalId) {
+  if (groupKey.startsWith("national_id:")) {
+    const nidKey = groupKey.slice("national_id:".length);
+    const bucket = existingByNationalId.get(nidKey) || [];
+    const plates = [];
+    for (const row of bucket) {
+      if (Array.isArray(row.license_plates)) plates.push(...row.license_plates);
+    }
+    return plates;
+  }
+  const existing = existingById.get(String(winnerId)) || {};
+  return Array.isArray(existing.license_plates) ? existing.license_plates : [];
+}
+
+/**
+ * Group mapped rows by driver id, or by national_id when configured; accumulate plates jsonb
+ * and set current plate from the row with the latest timestamp_source.
+ */
+function aggregateConductorPlateRecords(
+  records,
+  spec,
+  existingById = new Map(),
+  existingByNationalId = new Map()
+) {
+  if (!spec || typeof spec !== "object" || !Array.isArray(records) || !records.length) {
+    return records;
+  }
+  const platesTarget = spec.license_plates_target || "license_plates";
+  const currentTarget = spec.current_plate_target || "current_license_plate";
+  const groups = new Map();
+
+  for (const record of records) {
+    const groupKey = conductorAggregateGroupKey(record, spec);
+    if (!groupKey) continue;
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(record);
+  }
+
+  const out = [];
+  for (const [groupKey, rows] of groups) {
+    rows.sort((a, b) => {
+      const tb = parseAggTimestamp(b.__agg_ts);
+      const ta = parseAggTimestamp(a.__agg_ts);
+      if (tb !== ta) return tb - ta;
+      return normalizePlateValue(b.__agg_plate).localeCompare(normalizePlateValue(a.__agg_plate));
+    });
+    const winner = rows[0];
+    const sourcePlates = rows
+      .slice()
+      .sort((a, b) => parseAggTimestamp(a.__agg_ts) - parseAggTimestamp(b.__agg_ts))
+      .map((r) => normalizePlateValue(r.__agg_plate))
+      .filter(Boolean);
+    const currentPlate = normalizePlateValue(winner.__agg_plate) || null;
+    const existingPlates = collectExistingPlatesForAggregateGroup(
+      groupKey,
+      winner.id,
+      existingById,
+      existingByNationalId
+    );
+    const licensePlates = mergeUniquePlateList(existingPlates, sourcePlates);
+
+    const merged = { ...winner };
+    delete merged.__agg_plate;
+    delete merged.__agg_ts;
+    merged[platesTarget] = licensePlates;
+    merged[currentTarget] = currentPlate;
+    applyLicensePlateNormalization(merged, { normalize_license_plates_ec: spec.normalize_license_plates_ec !== false });
+    out.push(merged);
+  }
+  return out;
+}
+
+async function fetchExistingDriversByNationalId(sb, targetTable, nationalIdValues, nationalIdField = "national_id") {
+  const exactValues = [
+    ...new Set(
+      nationalIdValues
+        .map((raw) => (raw != null ? String(raw).trim() : ""))
+        .filter(Boolean)
+    ),
+  ];
+  const out = new Map();
+  if (!exactValues.length) return out;
+
+  const chunkSize = 100;
+  for (let i = 0; i < exactValues.length; i += chunkSize) {
+    const chunk = exactValues.slice(i, i + chunkSize);
+    const inList = chunk.map((id) => encodeURIComponent(id)).join(",");
+    const res = await sb.get(targetTable, {
+      select: `id,${nationalIdField},license_plates,current_license_plate`,
+      [nationalIdField]: `in.(${inList})`,
+    });
+    if (![200, 206].includes(res.status)) {
+      const txt = await res.text();
+      throw new Error(`Failed to read existing drivers by national_id: ${res.status} ${txt.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    if (!Array.isArray(data)) continue;
+    for (const row of data) {
+      const rawNid = row?.[nationalIdField];
+      if (rawNid == null || String(rawNid).trim() === "") continue;
+      const key = normalizeNationalIdClusterKey(rawNid);
+      if (!out.has(key)) out.set(key, []);
+      out.get(key).push(row);
+    }
+  }
+  return out;
+}
+
+async function deleteStaleDriversByNationalId(sb, targetTable, records, spec) {
+  const nationalIdField = spec.group_by_national_id || "national_id";
+  if (!spec.dedupe_destination_by_national_id) return 0;
+  let deleted = 0;
+  for (const record of records) {
+    const nid = record[nationalIdField];
+    const winnerId = record.id;
+    if (isBlankValue(nid) || isBlankValue(winnerId)) continue;
+    const res = await sb.deleteWhere(targetTable, {
+      [nationalIdField]: `eq.${encodeURIComponent(String(nid).trim())}`,
+      id: `neq.${winnerId}`,
+    });
+    if (![200, 204].includes(res.status)) {
+      const txt = await res.text();
+      throw new Error(
+        `Failed to dedupe drivers by ${nationalIdField}: ${res.status} ${txt.slice(0, 300)}`
+      );
+    }
+    deleted += 1;
+  }
+  return deleted;
+}
+
+async function fetchExistingDriverPlateFields(sb, targetTable, ids) {
+  const uniqueIds = [...new Set(ids.map((id) => (id != null ? String(id).trim() : "")).filter(Boolean))];
+  const out = new Map();
+  if (!uniqueIds.length) return out;
+
+  const chunkSize = 100;
+  for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+    const chunk = uniqueIds.slice(i, i + chunkSize);
+    const inList = chunk.map((id) => encodeURIComponent(id)).join(",");
+    const res = await sb.get(targetTable, {
+      select: "id,license_plates,current_license_plate",
+      id: `in.(${inList})`,
+    });
+    if (![200, 206].includes(res.status)) {
+      const txt = await res.text();
+      throw new Error(`Failed to read existing driver plates: ${res.status} ${txt.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    if (!Array.isArray(data)) continue;
+    for (const row of data) {
+      if (row?.id != null) out.set(String(row.id), row);
+    }
+  }
+  return out;
+}
+
 function dedupeRecordsByTargetFields(records, targetKeys, opts = {}) {
   const strategy = opts.strategy === "first" ? "first" : "last";
   const keys = (Array.isArray(targetKeys) ? targetKeys : [targetKeys]).filter(
@@ -471,6 +748,36 @@ function dedupeRecordsByTargetFields(records, targetKeys, opts = {}) {
     merged.set(k, r);
   }
   return rest.concat([...merged.values()]);
+}
+
+function normalizeSourceIdToUuid(raw) {
+  const s = String(raw).trim().toLowerCase();
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s)) {
+    return s;
+  }
+  const compact = s.replace(/-/g, "");
+  if (!/^[0-9a-f]{32}$/.test(compact)) return null;
+  return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`;
+}
+
+function resolveUuid5PrimaryOrFallbackKey(row, sourceIndex, primaryCol, fallbackCol) {
+  const pi = sourceIndex[primaryCol];
+  const primary = pi !== undefined ? row[pi] : undefined;
+  const hasPrimary = primary != null && String(primary).trim() !== "";
+  const useFallback = typeof fallbackCol === "string" && fallbackCol.trim() !== "";
+
+  if (hasPrimary) {
+    const val = String(primary).trim();
+    return useFallback ? `national_id:${val}` : val;
+  }
+  if (useFallback) {
+    const fi = sourceIndex[fallbackCol.trim()];
+    const fallback = fi !== undefined ? row[fi] : undefined;
+    if (fallback != null && String(fallback).trim() !== "") {
+      return `person_id:${String(fallback).trim()}`;
+    }
+  }
+  return null;
 }
 
 function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
@@ -588,11 +895,34 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
           }
         }
       }
-    } else if (idS?.type === "uuid5_from_source" && idS.source_column && idS.column) {
+    } else if (idS?.type === "direct_from_source" && idS.source_column && idS.column) {
       const si = sourceIndex[idS.source_column];
+      const raw = si !== undefined ? row[si] : undefined;
+      if (raw != null && String(raw).trim() !== "") {
+        const normalized =
+          idS.normalize_to_uuid === false
+            ? String(raw).trim()
+            : normalizeSourceIdToUuid(raw);
+        if (normalized) {
+          record[idS.column] = normalized;
+        }
+      }
+    } else if (idS?.type === "uuid5_from_source" && idS.source_column && idS.column) {
       const ns = idS.namespace || UUID_NAMESPACE;
-      if (si !== undefined && row[si] != null) {
-        const generatedUuid = uuidv5(String(row[si]).trim(), ns);
+      const key = idS.fallback_source_column
+        ? resolveUuid5PrimaryOrFallbackKey(
+            row,
+            sourceIndex,
+            idS.source_column,
+            idS.fallback_source_column
+          )
+        : (() => {
+            const si = sourceIndex[idS.source_column];
+            const raw = si !== undefined ? row[si] : undefined;
+            return raw != null && String(raw).trim() !== "" ? String(raw).trim() : null;
+          })();
+      if (key) {
+        const generatedUuid = uuidv5(key, ns);
         record[idS.column] = generatedUuid;
         const dup = idS.duplicate_uuid_to;
         if (dup) {
@@ -603,6 +933,10 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
         }
       }
     }
+    if (pipelineConfig.id_strategy?.column && isBlankValue(record[pipelineConfig.id_strategy.column])) {
+      continue;
+    }
+    applyLicensePlateNormalization(record, pipelineConfig);
     if (buildJsonbSpecsList(pipelineConfig).length) {
       applyBuildJsonbFromPipelineConfig(record, row, sourceIndex, pipelineConfig);
     }
@@ -614,6 +948,15 @@ function splitRowsGeneric(rows, pipelineConfig, existingKeys, now) {
         if (raw == null || String(raw).trim() === "") continue;
         record[spec.target] = [String(raw).trim()];
       }
+    }
+    if (pipelineConfig.aggregate_conductor_plates) {
+      const aggSpec = pipelineConfig.aggregate_conductor_plates;
+      const plateSource = aggSpec.plate_source || "placa";
+      const tsSource = aggSpec.timestamp_source || "visitor_updated_at";
+      const plateIdx = sourceIndex[plateSource];
+      const tsIdx = sourceIndex[tsSource];
+      record.__agg_plate = plateIdx !== undefined ? row[plateIdx] : null;
+      record.__agg_ts = tsIdx !== undefined ? row[tsIdx] : null;
     }
     if (includeIngested) {
       const tsCol = pipelineConfig.sync_timestamp_column || "_ingested_at";
@@ -982,6 +1325,113 @@ async function getExistingKeys(sb, targetTable, conflictKey) {
   return values;
 }
 
+async function loadS3Json(key) {
+  if (!ETL_LOGS_BUCKET || !key) return null;
+  try {
+    const res = await s3Client.send(
+      new GetObjectCommand({ Bucket: ETL_LOGS_BUCKET, Key: key })
+    );
+    const body = await res.Body.transformToString();
+    return JSON.parse(body);
+  } catch (err) {
+    const code = err?.name || err?.Code;
+    const status = err?.$metadata?.httpStatusCode;
+    if (code === "NoSuchKey" || status === 404) return null;
+    throw err;
+  }
+}
+
+async function saveS3Json(key, data) {
+  if (!ETL_LOGS_BUCKET || !key) {
+    throw new Error("ETL_LOGS_BUCKET not set; cannot persist baseline snapshot");
+  }
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: ETL_LOGS_BUCKET,
+      Key: key,
+      Body: JSON.stringify(data, null, 2),
+      ContentType: "application/json",
+    })
+  );
+  return `s3://${ETL_LOGS_BUCKET}/${key}`;
+}
+
+/** Normalize business key for incremental_new_keys baseline diff (optional EC plate format). */
+function normalizeIncrementalSourceKey(raw, spec) {
+  let s = raw != null ? String(raw).trim() : "";
+  if (!s) return "";
+  if (spec?.normalize_plate) {
+    s = normalizeLicensePlateEcDisplay(s);
+  }
+  return s;
+}
+
+async function loadIncrementalBaselineKeys(pipelineConfig) {
+  const spec = pipelineConfig.incremental_new_keys;
+  if (!spec?.baseline_s3_key || !spec.source_column) {
+    return null;
+  }
+  const payload = await loadS3Json(spec.baseline_s3_key);
+  if (!payload || !Array.isArray(payload.keys)) {
+    const msg =
+      `Missing baseline at s3://${ETL_LOGS_BUCKET}/${spec.baseline_s3_key}. ` +
+      "Run the matching scripts/bootstrap*Baseline.js --upload before incremental sync.";
+    throw new Error(msg);
+  }
+  return {
+    spec,
+    payload,
+    keys: new Set(payload.keys.map((k) => String(k))),
+  };
+}
+
+function filterDatabricksRowsNotInBaseline(rows, pipelineConfig, baselineKeys, spec) {
+  const sourceIndex = sourceIndexMap(pipelineConfig);
+  const colIdx = sourceIndex[spec.source_column];
+  if (colIdx === undefined) {
+    throw new Error(`incremental_new_keys.source_column not in SELECT: ${spec.source_column}`);
+  }
+  const before = rows.length;
+  const filtered = rows.filter((row) => {
+    const key = normalizeIncrementalSourceKey(row[colIdx], spec);
+    return key && !baselineKeys.has(key);
+  });
+  logInfo("incremental_new_keys baseline filter", {
+    source_column: spec.source_column,
+    baseline_size: baselineKeys.size,
+    rows_before: before,
+    rows_after: filtered.length,
+    cutover_date: spec.cutover_date || pipelineConfig._baselinePayload?.cutover_date,
+  });
+  return filtered;
+}
+
+async function appendInsertedKeysToBaseline(baselineState, newRows, pipelineConfig, conflictKey) {
+  const spec = baselineState.spec;
+  if (!spec?.baseline_s3_key || !newRows.length) return null;
+  const targetCol =
+    pipelineConfig.column_mapping.find((m) => m.source === spec.source_column)?.target ||
+    parseConflictColumns(conflictKey)[0];
+  let added = 0;
+  for (const row of newRows) {
+    const raw = targetCol ? row[targetCol] : recordConflictKey(row, conflictKey);
+    const key = normalizeIncrementalSourceKey(raw, spec);
+    if (key && !baselineState.keys.has(key)) {
+      baselineState.keys.add(key);
+      added += 1;
+    }
+  }
+  if (!added) return null;
+  const updated = {
+    cutover_date: spec.cutover_date || baselineState.payload.cutover_date,
+    updated_at: new Date().toISOString(),
+    keys: [...baselineState.keys].sort(),
+  };
+  const uri = await saveS3Json(spec.baseline_s3_key, updated);
+  logInfo("incremental_new_keys baseline updated", { added, total: updated.keys.length, uri });
+  return uri;
+}
+
 async function saveEtlLog(logData) {
   if (!ETL_LOGS_BUCKET) {
     console.warn("ETL_LOGS_BUCKET not set, skipping S3 log.");
@@ -1054,6 +1504,205 @@ async function saveLatestPipelineSuccess(logData, fullLogUri) {
     console.error("Failed to save latest pipeline checkpoint to S3", err);
     return null;
   }
+}
+
+async function saveDomainBatchLog(batchId, logData) {
+  if (!ETL_LOGS_BUCKET) {
+    console.warn("ETL_LOGS_BUCKET not set, skipping domain batch S3 log.");
+    return { detail_uri: null, latest_uri: null };
+  }
+
+  const ts = logData.sync_timestamp || new Date().toISOString();
+  const datePrefix = ts.slice(0, 10);
+  const prefix = (logData.s3_checkpoint_prefix || batchId).replace(/\/$/, "");
+  const detailKey = `${prefix}-batch/${datePrefix}/${ts.replace(/:/g, "-")}.json`;
+  const latestKey = `${ETL_SUCCESS_PREFIX}/${prefix}/batch/latest.json`;
+
+  const payload = {
+    batch_id: batchId,
+    label: logData.label || batchId,
+    status: logData.status,
+    sync_timestamp: ts,
+    stop_on_failure: logData.stop_on_failure !== false,
+    steps: logData.steps || [],
+    warnings: logData.warnings || [],
+    failed_step: logData.failed_step || null,
+    duration_ms: logData.duration_ms || null,
+  };
+
+  try {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: ETL_LOGS_BUCKET,
+        Key: detailKey,
+        Body: JSON.stringify(payload, null, 2),
+        ContentType: "application/json",
+      })
+    );
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: ETL_LOGS_BUCKET,
+        Key: latestKey,
+        Body: JSON.stringify({ ...payload, full_log_uri: `s3://${ETL_LOGS_BUCKET}/${detailKey}` }, null, 2),
+        ContentType: "application/json",
+      })
+    );
+    const detailUri = `s3://${ETL_LOGS_BUCKET}/${detailKey}`;
+    const latestUri = `s3://${ETL_LOGS_BUCKET}/${latestKey}`;
+    logInfo("Domain batch log saved", { batchId, detailUri, latestUri, status: payload.status });
+    return { detail_uri: detailUri, latest_uri: latestUri };
+  } catch (err) {
+    console.error("Failed to save domain batch log to S3", err);
+    return { detail_uri: null, latest_uri: null };
+  }
+}
+
+function evaluateBatchStepWarnings(stepCfg, pipelineName, result, batchWarningsConfig) {
+  const warnings = [];
+  const rules = batchWarningsConfig?.[pipelineName];
+  if (!rules || typeof rules !== "object") return warnings;
+
+  if (typeof rules.min_total_after === "number" && (result.total ?? 0) < rules.min_total_after) {
+    warnings.push({
+      pipeline_name: pipelineName,
+      target_table: stepCfg.target_table || null,
+      code: "min_total_after",
+      message: rules.message || `total ${result.total} below min_total_after ${rules.min_total_after}`,
+    });
+  }
+  return warnings;
+}
+
+async function runDomainBatch(event) {
+  const batchId = event?.domain_batch || event?.batch_name;
+  const batchCfg = getDomainBatchConfig(batchId);
+  const stopOnFailure = event?.stop_on_failure !== undefined ? !!event.stop_on_failure : batchCfg.stop_on_failure !== false;
+  const startedAt = new Date();
+  const steps = [];
+  const warnings = [];
+  let failedStep = null;
+
+  logInfo("Domain batch start", {
+    batch_id: batchCfg.batch_id,
+    label: batchCfg.label,
+    steps: batchCfg.sequence.length,
+    stop_on_failure: stopOnFailure,
+  });
+
+  for (const step of batchCfg.sequence) {
+    const pipelineName = step.pipeline_name;
+    if (!pipelineName) {
+      const msg = `Batch step missing pipeline_name (order ${step.order ?? "?"})`;
+      console.warn(msg);
+      warnings.push({ pipeline_name: null, code: "invalid_step", message: msg });
+      continue;
+    }
+
+    const stepStarted = Date.now();
+    logInfo("Domain batch step start", {
+      batch_id: batchCfg.batch_id,
+      order: step.order,
+      pipeline_name: pipelineName,
+      target_table: step.target_table,
+      reason: step.reason,
+    });
+
+    try {
+      const result = await runSyncForPipeline({ pipeline_name: pipelineName });
+      const stepWarnings = evaluateBatchStepWarnings(step, pipelineName, result, batchCfg.warnings);
+      for (const w of stepWarnings) {
+        console.warn(`[batch:${batchCfg.batch_id}] ${w.message}`);
+        warnings.push(w);
+      }
+
+      steps.push({
+        order: step.order,
+        pipeline_name: pipelineName,
+        target_table: step.target_table || result.dest_table || null,
+        status: result.status || "success",
+        inserted: result.inserted ?? 0,
+        updated: result.updated ?? 0,
+        total: result.total ?? null,
+        duration_ms: Date.now() - stepStarted,
+        s3_log_uri: result.s3_log_uri || null,
+        s3_latest_uri: result.s3_latest_uri || null,
+        warnings: stepWarnings,
+      });
+
+      logInfo("Domain batch step complete", {
+        batch_id: batchCfg.batch_id,
+        pipeline_name: pipelineName,
+        status: result.status,
+        inserted: result.inserted,
+        updated: result.updated,
+        total: result.total,
+      });
+    } catch (error) {
+      const message = String(error.message || error);
+      console.warn(`[batch:${batchCfg.batch_id}] step failed: ${pipelineName} — ${message}`);
+      failedStep = {
+        order: step.order,
+        pipeline_name: pipelineName,
+        target_table: step.target_table || null,
+        status: "error",
+        error: message,
+        duration_ms: Date.now() - stepStarted,
+      };
+      steps.push(failedStep);
+
+      try {
+        const cfg = loadPipelinesConfig()[pipelineName];
+        if (cfg) {
+          const { baseUrl, serviceKey } = resolveSupabaseForPipeline(cfg);
+          const sb = makeSupabaseClient(baseUrl, serviceKey);
+          await createRunRecord(sb, pipelineName, "error", { error_message: message });
+        }
+      } catch (inner) {
+        console.warn(`Failed writing etl_runs for batch step ${pipelineName}`, inner);
+      }
+
+      if (stopOnFailure) {
+        break;
+      }
+    }
+  }
+
+  const finishedAt = new Date();
+  const allOk = !failedStep && steps.every((s) => s.status !== "error");
+  const batchStatus = allOk ? "success" : failedStep ? "failed" : "partial";
+
+  const summary = {
+    batch_id: batchCfg.batch_id,
+    label: batchCfg.label,
+    status: batchStatus,
+    sync_timestamp: finishedAt.toISOString(),
+    stop_on_failure: stopOnFailure,
+    s3_checkpoint_prefix: batchCfg.s3_checkpoint_prefix || batchCfg.batch_id,
+    steps,
+    warnings,
+    failed_step: failedStep,
+    duration_ms: finishedAt.getTime() - startedAt.getTime(),
+  };
+
+  const s3 = await saveDomainBatchLog(batchCfg.batch_id, summary);
+
+  if (batchStatus === "failed") {
+    const err = new Error(
+      `Domain batch '${batchCfg.batch_id}' failed at step ${failedStep.pipeline_name}: ${failedStep.error}`
+    );
+    err.batchSummary = { ...summary, s3_batch_uri: s3.detail_uri, s3_batch_latest_uri: s3.latest_uri };
+    throw err;
+  }
+
+  if (warnings.length) {
+    console.warn(`[batch:${batchCfg.batch_id}] completed with ${warnings.length} warning(s)`);
+  }
+
+  return {
+    ...summary,
+    s3_batch_uri: s3.detail_uri,
+    s3_batch_latest_uri: s3.latest_uri,
+  };
 }
 
 async function createRunRecord(sb, pipelineName, status, payload = {}) {
@@ -1135,6 +1784,30 @@ async function runSyncForPipeline(event) {
     dbxRows = deduplicateRows(dbxRows, pipelineConfig);
   }
 
+  let baselineState = null;
+  if (pipelineConfig.incremental_new_keys) {
+    baselineState = await loadIncrementalBaselineKeys(pipelineConfig);
+    pipelineConfig._baselinePayload = baselineState.payload;
+    dbxRows = filterDatabricksRowsNotInBaseline(
+      dbxRows,
+      pipelineConfig,
+      baselineState.keys,
+      baselineState.spec
+    );
+    if (!dbxRows.length) {
+      logInfo("No new source keys since baseline cutover", {
+        pipelineName,
+        baseline_size: baselineState.keys.size,
+      });
+      return {
+        status: "no_new_since_baseline",
+        inserted: 0,
+        total: countBefore,
+        pipeline_name: pipelineName,
+      };
+    }
+  }
+
   let pipelineConfigForSplit = pipelineConfig;
   if (pipelineConfig.transform_materials_weight_zod) {
     const materialsCatalog = await fetchSaMaterialsCatalog(sb);
@@ -1143,6 +1816,38 @@ async function runSyncForPipeline(event) {
   }
 
   let { newRows, allRows } = splitRowsByMode(dbxRows, pipelineConfigForSplit, existing, now);
+  if (pipelineConfig.aggregate_conductor_plates) {
+    const aggSpec = pipelineConfig.aggregate_conductor_plates;
+    const beforeAgg = allRows.length;
+    let existingById = new Map();
+    let existingByNationalId = new Map();
+    if (aggSpec.merge_existing !== false) {
+      existingById = await fetchExistingDriverPlateFields(
+        sb,
+        targetTable,
+        allRows.map((r) => r.id)
+      );
+      if (aggSpec.group_by_national_id) {
+        existingByNationalId = await fetchExistingDriversByNationalId(
+          sb,
+          targetTable,
+          allRows.map((r) => r[aggSpec.group_by_national_id]),
+          aggSpec.group_by_national_id
+        );
+      }
+    }
+    allRows = aggregateConductorPlateRecords(allRows, aggSpec, existingById, existingByNationalId);
+    newRows = allRows.filter((r) => {
+      const k = recordConflictKey(r, conflictKey);
+      return k !== "" && !existing.has(k);
+    });
+    logInfo("aggregate_conductor_plates applied", {
+      before: beforeAgg,
+      after: allRows.length,
+      merge_existing: aggSpec.merge_existing !== false,
+      group_by_national_id: aggSpec.group_by_national_id || null,
+    });
+  }
   if (pipelineConfig.dedupe_records_by) {
     const keys = pipelineConfig.dedupe_records_by;
     const strat = pipelineConfig.dedupe_records_strategy === "first" ? "first" : "last";
@@ -1197,9 +1902,29 @@ async function runSyncForPipeline(event) {
     logInfo(`Written batch ${Math.floor(i / batchSize) + 1}`, { mode: writeMode, size: batch.length });
   }
 
+  if (pipelineConfig.aggregate_conductor_plates?.dedupe_destination_by_national_id) {
+    const dedupeBatches = await deleteStaleDriversByNationalId(
+      sb,
+      targetTable,
+      rowsToWrite,
+      pipelineConfig.aggregate_conductor_plates
+    );
+    logInfo("dedupe_destination_by_national_id applied", { records: rowsToWrite.length, calls: dedupeBatches });
+  }
+
   const postKeys = await getExistingKeys(sb, targetTable, conflictKey);
   const countAfter = postKeys.size;
   const syncTime = new Date().toISOString();
+
+  let baselineS3Uri = null;
+  if (baselineState && inserted > 0) {
+    baselineS3Uri = await appendInsertedKeysToBaseline(
+      baselineState,
+      newRows,
+      pipelineConfig,
+      conflictKey
+    );
+  }
 
   if (!SKIP_ETL_WATERMARK) {
     const upsertRes = await sb.upsert(
@@ -1228,6 +1953,7 @@ async function runSyncForPipeline(event) {
     skipped: dbxRows.length - rowsToWrite.length,
     quality_stats: qualityStats,
     sync_timestamp: syncTime,
+    baseline_s3_uri: baselineS3Uri,
     inserted_records: newRows.slice(0, 200).map((r) => ({
       conflict_key: recordConflictKey(r, conflictKey),
       id: r.id,
@@ -1259,6 +1985,20 @@ async function runSyncForPipeline(event) {
 exports.lambdaHandler = async (event) => {
   logInfo("Event received", event);
   try {
+    if (event?.domain_batch || event?.batch_name) {
+      const result = await runDomainBatch(event || {});
+      logInfo("Domain batch complete", {
+        batch_id: result.batch_id,
+        status: result.status,
+        steps: result.steps?.length,
+        warnings: result.warnings?.length,
+      });
+      return {
+        statusCode: result.status === "success" ? 200 : 207,
+        body: JSON.stringify(result),
+      };
+    }
+
     const result = await runSyncForPipeline(event || {});
     logInfo("Sync complete", result);
     return {
@@ -1267,6 +2007,16 @@ exports.lambdaHandler = async (event) => {
     };
   } catch (error) {
     console.error("Sync failed", error);
+    if (error.batchSummary) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          status: "error",
+          message: String(error.message || error),
+          batch: error.batchSummary,
+        }),
+      };
+    }
     try {
       const pipelineName = event?.pipeline_name || process.env.DEFAULT_PIPELINE || "transportistas";
       const cfg = loadPipelinesConfig()[pipelineName];

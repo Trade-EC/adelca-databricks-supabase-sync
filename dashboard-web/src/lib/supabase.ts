@@ -1,17 +1,19 @@
 import { appConfig } from "./config";
 
-export type SupabaseProfile = "default" | "secondary" | "tertiary";
+export type SupabaseProfile = "default" | "secondary" | "tertiary" | "base_socio";
 
 const PROFILE_LABEL: Record<SupabaseProfile, string> = {
   default: "Default",
   secondary: "Secondary",
   tertiary: "Tertiary",
+  base_socio: "Base socio",
 };
 
 const PROFILE_ENV_HINT: Record<SupabaseProfile, string> = {
   default: "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY",
   secondary: "SUPABASE_SECONDARY_URL / SUPABASE_SECONDARY_SERVICE_ROLE_KEY",
   tertiary: "SUPABASE_TERTIARY_URL / SUPABASE_TERTIARY_SERVICE_ROLE_KEY",
+  base_socio: "SUPABASE_BASE_SOCIO_URL / SUPABASE_BASE_SOCIO_SERVICE_ROLE_KEY",
 };
 
 function credsForProfile(profile: SupabaseProfile = "default") {
@@ -31,6 +33,15 @@ function credsForProfile(profile: SupabaseProfile = "default") {
     return {
       supabaseUrl: appConfig.supabaseTertiaryUrl,
       supabaseKey: appConfig.supabaseTertiaryKey,
+    };
+  }
+  if (profile === "base_socio") {
+    if (!appConfig.supabaseBaseSocioUrl || !appConfig.supabaseBaseSocioKey) {
+      return null;
+    }
+    return {
+      supabaseUrl: appConfig.supabaseBaseSocioUrl,
+      supabaseKey: appConfig.supabaseBaseSocioKey,
     };
   }
   if (!appConfig.supabaseUrl || !appConfig.supabaseKey) {
@@ -122,5 +133,6 @@ export async function supabaseDatamartWatermark(
 export function resolveSupabaseProfileFromPipeline(raw?: string): SupabaseProfile {
   if (raw === "secondary") return "secondary";
   if (raw === "tertiary") return "tertiary";
+  if (raw === "base_socio") return "base_socio";
   return "default";
 }

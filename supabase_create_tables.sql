@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS public.transportistas_final (
     _ingested_at            timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
--- Transportistas PRD (synced from Databricks PRD: prod.gldprd.dim_app_transportistas)
+-- Fleet owners / transportistas PRD (pipeline transportistas → public.fleet_owners; antes public.transportistas)
+-- Origen Databricks: prod.gldlogistica.db_trade_dim_app_transportistas
 -- Requires ENUM types created first.
 
 CREATE TYPE carrier_status_enum AS ENUM ('activo', 'inactivo', 'pendiente');
@@ -71,9 +72,29 @@ CREATE TABLE IF NOT EXISTS public.etl_runs (
 CREATE INDEX IF NOT EXISTS idx_etl_runs_pipeline_created_at
   ON public.etl_runs (pipeline_name, created_at DESC);
 
--- Pipeline 2: QAS qas.aplicaciones.dim_vehiculos → public.vehicles (secondary Supabase).
+-- Pipeline vehiculos: PRD prod.gldlogistica.db_trade_dim_vehiculos → public.vehicles (default Supabase rqlzsdziohmqanalmgyx).
+-- Incremental: diff placa vs baseline S3 etl-success/vehiculos/prd_baseline_placas.json (corte 2026-06-09).
+-- audit_created_at en PRD repite la fecha de ingesta masiva; no usar para filtro temporal.
 -- The live `vehicles` table is app-defined; typical columns: id, license_plate, type, model,
 -- weight_average_capacity, weight_average_capacity_unit, fleet_owner_unique_code, is_route_based, synced_at.
+
+-- Pipeline conductores: Supabase terciario api.vw_maestro_persona_conductor (PostgREST) → public.drivers (secondary).
+-- Vista ampliada (visitante con placa = conductor): scripts/sql/api_vw_maestro_persona_conductor.sql (proyecto terciario).
+-- Ejecutar en el proyecto Supabase secondary. Ajusta columnas si el lake usa otros nombres; luego pipelines.json + Reload schema.
+CREATE TABLE IF NOT EXISTS public.drivers (
+    id                   uuid PRIMARY KEY,
+    driver_unique_code   text NOT NULL UNIQUE,
+    full_name            text,
+    national_id          text,
+    phone                text,
+    email                text,
+    synced_at            timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_drivers_national_id ON public.drivers (national_id);
+
+-- LEGACY (no usar en ETL): public.drivers_hist — scripts/sql/supabase_secondary_drivers_hist.sql
+-- Pipeline conductores escribe solo en public.drivers (schema app: name, license_plates, etc.).
 
 -- Pipeline socio_adelca_ferreterias: QAS qas.aplicaciones.dim_ferreterias_mtz → public.sa_hardware_stores (secondary).
 -- Destino típico (OpenAPI): id, store_group_id, name, tax_id, created_at, updated_at, deleted_at.
@@ -91,11 +112,11 @@ ALTER TABLE IF EXISTS public.sa_hardware_store_groups
 -- Carga full por bajo volumen (upsert) con id = uuid5(codigo_material), synced_at incluido.
 -- Mapping actual: codigo_material→code, descripcion_material→description, categoria_rebate→cashback_category.
 
+-- Pipeline cartera: QAS qas.aplicaciones.control_cartera → public.in_debt_at (secondary, tabla app).
+-- Columnas cliente: scripts/sql/supabase_in_debt_at_customer_columns.sql (kunnr→customer_code, nombre_cliente→customer_name).
+
 -- Pipeline socio_adelca_facturas_rebate: QAS qas.aplicaciones.fact_invoices_sa → public.sa_invoices (secondary).
--- El destino en secondary es el modelo de cabecera de factura (alineado con el origen): invoice_number, lines jsonb,
--- materials_* jsonb, issued_date, montos, store_group_id / store_tax_id, timestamps, etc. Ver OpenAPI GET /rest/v1/.
--- Lambda: json_parse_targets para columnas jsonb enviadas como string desde Databricks; fill_missing_iso_timestamps
--- solo created_at si viene vacío; updated_at no se envía desde Databricks (default/trigger en Supabase).
--- include_ingested_at=false (no hay synced_at en esta tabla).
--- Tras ALTER nullable en sa_invoices: Settings → API → Reload schema en Supabase; luego relajar pipelines.json (sin require store_group_id ni coalesce tax).
--- store_tax_id: quitar null_coalesce en pipelines cuando en Supabase sea nullable y PostgREST vea el cambio.
+-- materials_weight_totals (consulta 1 Zod): { material_name, material_code, kg, subtotal, taxes, total }
+--   → Lambda transform_materials_weight_zod + sa_materials.cashback_category; ver lambda_function/sa_invoice_zod_transform.js
+-- materials_categories_weight_totals (consulta 2, tal cual): { category, total_weight_kg, total_amount }
+-- Documentación SQL: scripts/sql/supabase_sa_invoices_jsonb_schema.sql

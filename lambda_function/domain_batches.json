@@ -1,0 +1,34 @@
+{
+  "base_socio": {
+    "label": "Socio Adelca + cartera → Base Socio (producción)",
+    "supabase_profile": "base_socio",
+    "stop_on_failure": true,
+    "s3_checkpoint_prefix": "base_socio",
+    "sequence": [
+      {
+        "order": 1,
+        "pipeline_name": "socio_adelca_grupos",
+        "target_table": "sa_hardware_store_groups",
+        "reason": "Maestro de grupos; store_group_id en ferreterías referencia uuid5(id_grupo)."
+      },
+      {
+        "order": 2,
+        "pipeline_name": "socio_adelca_ferreterias",
+        "target_table": "sa_hardware_stores",
+        "reason": "Ferreterías con store_group_id FK lógico al grupo (uuid5 id_grupo)."
+      },
+      {
+        "order": 3,
+        "pipeline_name": "socio_adelca_facturas_rebate",
+        "target_table": "sa_invoices",
+        "reason": "Fact rebate; materiales excluido del batch (sa_materials pendiente en Base Socio)."
+      },
+      {
+        "order": 4,
+        "pipeline_name": "cartera",
+        "target_table": "in_debt_at",
+        "reason": "Cartera SAP; mismo proyecto Base Socio."
+      }
+    ]
+  }
+}
