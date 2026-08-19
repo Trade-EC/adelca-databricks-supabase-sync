@@ -1,6 +1,17 @@
-# SAM CLI configuration
+# SAM CLI configuration (SAFE defaults only — never put real secrets here)
 # Run: sam deploy --guided  (first time, to set these values interactively)
 # Then: sam deploy            (subsequent deploys reuse saved config)
+#
+# SECURITY (2026-08-19): A prior commit published DatabricksClientSecret + SupabaseServiceRoleKey
+# to a public GitHub repo. That Databricks SP secret was revoked by Databricks. Until a new
+# secret is issued and wired into Lambda / samconfig.local.toml / transportistas_sync/.env,
+# PRD OAuth M2M will fail.
+#
+# Real credentials belong ONLY in:
+#   - samconfig.local.toml  (gitignored)
+#   - transportistas_sync/.env (gitignored)
+#   - AWS Lambda environment variables
+# Never commit ClientSecret, tokens, or service-role keys. Never embed PATs in git remotes.
 
 version = 0.1
 
@@ -12,8 +23,7 @@ region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 
-# Use non-sensitive defaults in git; keep real credentials in samconfig.local.toml (ignored)
-# Deploy with local creds: sam deploy --config-file samconfig.local.toml --no-confirm-changeset
+# Placeholders only. Deploy with: sam deploy --config-file samconfig.local.toml --no-confirm-changeset
 # ScheduleExpression must be quoted for SAM: ScheduleExpression="cron(...)" (see AWS SAM deploy docs)
 parameter_overrides = "DatabricksHost=CHANGEME DatabricksHttpPath=/sql/1.0/warehouses/CHANGEME DatabricksClientId=CHANGEME DatabricksClientSecret=CHANGEME DatabricksQasHost=CHANGEME DatabricksQasHttpPath=/sql/1.0/warehouses/CHANGEME DatabricksQasToken=CHANGEME SupabaseUrl=https://CHANGEME.supabase.co SupabaseServiceRoleKey=CHANGEME SupabaseSecondaryUrl=https://CHANGEME.supabase.co SupabaseSecondaryServiceRoleKey=CHANGEME SupabaseTertiaryUrl=https://CHANGEME.supabase.co SupabaseTertiaryServiceRoleKey=CHANGEME SupabaseBaseSocioUrl=https://CHANGEME.supabase.co SupabaseBaseSocioServiceRoleKey=CHANGEME DbxTable=prod.gldlogistica.db_trade_dim_app_transportistas BatchSize=500 ScheduleExpression=\"cron(0 5 * * ? *)\""
 

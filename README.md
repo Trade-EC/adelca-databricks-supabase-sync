@@ -39,6 +39,8 @@ sam deploy --no-confirm-changeset
 
 ## Variables de entorno (archivo local)
 
+**No commits de secretos.** Credenciales reales solo en `transportistas_sync/.env`, `samconfig.local.toml` (ambos gitignored) o env vars de Lambda. `samconfig.toml` en git debe quedar con placeholders `CHANGEME`. Si un secret se filtró en git/historial público: rotarlo en Databricks/Supabase, actualizar Lambda/.env y no reutilizar el valor filtrado.
+
 Se leen desde `transportistas_sync/.env`:
 
 - `DATABRICKS_PRD_HOST`

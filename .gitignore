@@ -1,6 +1,9 @@
 # Env and secrets
 .env
+.env.*
+!.env.example
 transportistas_sync/.env
+transportistas_sync/.env.*
 *.env.local
 
 # Virtual env
@@ -16,10 +19,17 @@ __pycache__/
 dist/
 build/
 
-# SAM
+# SAM / deploy secrets
 .aws-sam/
 packaged.yaml
 samconfig.local.toml
+samconfig.*.local.toml
+lambda-deploy.zip
+
+# Lambda invoke / payload dumps (may contain data; keep out of git)
+.lambda-invoke-*.json
+.lambda-invoke-*.log
+.lambda-payload-*.json
 
 # Node.js
 node_modules/
@@ -27,3 +37,7 @@ npm-debug.log*
 
 # Vercel (local project link; use dashboard or re-link in CI)
 .vercel/
+
+# OS / editor
+.DS_Store
+*.swp
